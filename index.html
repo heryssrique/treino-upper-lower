@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Treino Upper/Lower</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15181A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Treino">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap">
@@ -48,6 +55,7 @@ header{padding-block:22px 12px;display:flex;flex-direction:column;gap:10px}
 header h1{font-size:clamp(34px,8vw,52px);font-weight:800;letter-spacing:-.01em;text-transform:uppercase}
 .profile{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--ink-2);font-size:13px}
 .profile b{color:var(--ink);font-weight:600}
+.install{align-self:flex-start;background:var(--ink);color:var(--bg);border:0;border-radius:8px;padding:9px 14px;font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase}
 
 /* tabs */
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-block:8px 16px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
@@ -175,6 +183,7 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
 
 <div class="wrap">
   <header>
+    <button class="install" id="install" hidden>Instalar app</button>
     <span class="eyebrow">Hipertrofia · 4 dias · 60 min + esteira</span>
     <h1>Upper / Lower</h1>
     <div class="profile">
@@ -639,6 +648,20 @@ document.querySelector(".tabs").addEventListener("click", e => {
 });
 
 renderWeek(); renderWorkout(); renderHistory();
+
+/* ---------- PWA: instalação e uso offline ---------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("#install").hidden = false; });
+$("#install").addEventListener("click", async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice.catch(() => {});
+  installEvt = null; $("#install").hidden = true;
+});
+window.addEventListener("appinstalled", () => { $("#install").hidden = true; toast("App instalado"); });
 </script>
 </body>
 </html>
