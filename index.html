@@ -55,7 +55,10 @@ header{padding-block:22px 12px;display:flex;flex-direction:column;gap:10px}
 header h1{font-size:clamp(34px,8vw,52px);font-weight:800;letter-spacing:-.01em;text-transform:uppercase}
 .profile{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--ink-2);font-size:13px}
 .profile b{color:var(--ink);font-weight:600}
-.install{align-self:flex-start;background:var(--ink);color:var(--bg);border:0;border-radius:8px;padding:9px 14px;font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase}
+.hbtns{display:flex;flex-wrap:wrap;gap:8px}
+.hbtns:not(:has(button:not([hidden]))){display:none}
+.install.alt{background:transparent;color:var(--ink);border:1px solid var(--line-2)}
+.install{background:var(--ink);color:var(--bg);border:0;border-radius:8px;padding:9px 14px;font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase}
 
 /* tabs */
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-block:8px 16px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
@@ -183,7 +186,7 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
 
 <div class="wrap">
   <header>
-    <button class="install" id="install" hidden>Instalar app</button>
+    <div class="hbtns"><button class="install" id="install" hidden>Instalar app</button><button class="install alt" id="notify" hidden>Ativar avisos de descanso</button></div>
     <span class="eyebrow">Hipertrofia · 4 dias · 60 min + esteira</span>
     <h1>Upper / Lower</h1>
     <div class="profile">
@@ -539,13 +542,16 @@ function toast(msg){
 }
 
 /* ---------- rest timer ---------- */
-let tEnd = 0, tDur = 0, tInt = null, beeped = false, actx = null;
+let tEnd = 0, tDur = 0, tInt = null, beeped = false, actx = null, tLabel = "";
 function startTimer(sec, label, sub){
+  tLabel = label;
   tDur = sec; tEnd = Date.now() + sec*1000; beeped = false;
   $("#t-label").innerHTML = `<b>${esc(label)}</b>${esc(sub)}`;
   $("#timer").hidden = false; $("#timer").classList.remove("over");
   try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
   clearInterval(tInt); tick(); tInt = setInterval(tick, 250);
+  askNotify();
+  scheduleNotify(label);
 }
 function tick(){
   const left = (tEnd - Date.now())/1000;
@@ -565,8 +571,8 @@ function beep(){
     });
   } catch(e) {}
 }
-function stopTimer(){ clearInterval(tInt); $("#timer").hidden = true; }
-$("#t-plus").onclick = () => { tEnd += 15000; tDur += 15; beeped = false; $("#timer").classList.remove("over"); tick(); };
+function stopTimer(){ clearInterval(tInt); $("#timer").hidden = true; cancelNotify(); }
+$("#t-plus").onclick = () => { tEnd += 15000; tDur += 15; beeped = false; $("#timer").classList.remove("over"); tick(); scheduleNotify(tLabel); };
 $("#t-stop").onclick = stopTimer;
 
 /* ---------- guide ---------- */
@@ -648,6 +654,31 @@ document.querySelector(".tabs").addEventListener("click", e => {
 });
 
 renderWeek(); renderWorkout(); renderHistory();
+
+/* ---------- notificação de fim do descanso ----------
+   O service worker espera até o fim do descanso e mostra a notificação,
+   mesmo com a tela bloqueada ou o app em segundo plano. */
+const canNotify = "Notification" in window && "serviceWorker" in navigator;
+function updateNotifyBtn(){
+  $("#notify").hidden = !(canNotify && Notification.permission === "default");
+}
+async function askNotify(){
+  if (!canNotify || Notification.permission !== "default") return;
+  try { await Notification.requestPermission(); } catch(e) {}
+  updateNotifyBtn();
+  if (Notification.permission === "granted") { toast("Avisos de descanso ativados"); if (!$("#timer").hidden) scheduleNotify(tLabel); }
+}
+async function swPost(msg){
+  if (!canNotify) return;
+  try { const reg = await navigator.serviceWorker.ready; reg.active && reg.active.postMessage(msg); } catch(e) {}
+}
+function scheduleNotify(label){
+  if (!canNotify || Notification.permission !== "granted") return;
+  swPost({ type:"rest", at:tEnd, title:"Descanso encerrado", body:`Hora da próxima série — ${label}` });
+}
+function cancelNotify(){ swPost({ type:"rest-cancel" }); }
+$("#notify").addEventListener("click", askNotify);
+updateNotifyBtn();
 
 /* ---------- PWA: instalação e uso offline ---------- */
 if ("serviceWorker" in navigator) {
