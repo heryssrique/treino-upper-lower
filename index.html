@@ -499,7 +499,9 @@ $("#workout").addEventListener("click", e => {
     updateProgress(wid);
     if (arr[j]){
       const x = W.ex[i], isLast = arr.filter(Boolean).length === x.s;
-      startTimer(x.rest, isLast ? `${x.n} concluído` : `${x.n} · série ${j+1}/${x.s}`, isLast && W.ex[i+1] ? `Próximo: ${W.ex[i+1].n}` : `Descanso ${x.restTxt}`);
+      // Última série do exercício: sem descanso, segue direto para o próximo.
+      if (isLast) { stopTimer(); toast(W.ex[i+1] ? `Próximo: ${W.ex[i+1].n}` : `${x.n} concluído`); }
+      else startTimer(x.rest, `${x.n} · série ${j+1}/${x.s}`, `Descanso ${x.restTxt}`);
     }
     return;
   }
