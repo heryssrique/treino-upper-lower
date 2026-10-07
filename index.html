@@ -164,6 +164,16 @@ tr:last-child td{border-bottom:0}
 th{font-family:var(--display);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12.5px;color:var(--ink-3);background:var(--surface-2)}
 ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:65ch;color:var(--ink-2)}
 .hist-empty{color:var(--ink-3);font-size:14px}
+.sync{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:16px;display:flex;flex-direction:column;gap:10px}
+.sync-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sync h2{font-size:22px;font-weight:800;text-transform:uppercase}
+.sync .fine{margin:0}
+.pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap}
+.pill.ok{border-color:var(--done);color:var(--done)}
+.pill.err{border-color:var(--red);color:var(--red)}
+.sync-form,.sync-on{display:flex;flex-wrap:wrap;gap:8px}
+.sync-form input{flex:1 1 200px;min-width:0;padding:10px 12px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);color:var(--ink);font:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .hist{display:flex;flex-direction:column;gap:8px}
 .hist details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .hist summary{font-weight:600;cursor:pointer}
@@ -207,6 +217,19 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
 
   <main id="view-guia" class="guide" hidden></main>
   <main id="view-hist" hidden>
+    <section class="sync" id="sync">
+      <div class="sync-head"><h2>Banco de dados</h2><span class="pill" id="sync-status">Só neste aparelho</span></div>
+      <p class="fine" id="sync-msg">Conecte com a sua chave pessoal para guardar os treinos no MongoDB e acessá-los de qualquer aparelho.</p>
+      <form class="sync-form" id="sync-form">
+        <label for="sync-key" class="sr">Chave pessoal</label>
+        <input id="sync-key" type="password" autocomplete="current-password" placeholder="Chave pessoal (APP_KEY)">
+        <button class="btn primary" type="submit">Conectar</button>
+      </form>
+      <div class="sync-on" id="sync-on" hidden>
+        <button class="btn ghost" id="sync-now" type="button">Sincronizar agora</button>
+        <button class="btn ghost" id="sync-off" type="button">Desconectar</button>
+      </div>
+    </section>
     <div class="hist" id="hist"></div>
   </main>
 </div>
@@ -394,7 +417,13 @@ const WEEK = [
 const KEY = "ul4-v1";
 let S = { checks:{}, draft:{}, last:{}, history:[] };
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch(e) {}
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+// Toda mudança feita no app: grava no aparelho e agenda o envio ao banco.
+function save(){ S.updatedAt = Date.now(); saveLocal(); Sync.pushStateSoon(); }
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+// Treinos salvos antes da sincronização ganham id e entram na fila de envio.
+S.pending ||= [];
+S.history.forEach((h, i) => { if (!h.id) { h.id = newId(); h.finishedAt = Date.now() - i; S.pending.push(h.id); } });
 const exKey = (w,i) => w + ":" + i;
 
 /* ---------- helpers ---------- */
@@ -534,9 +563,11 @@ function finish(){
     if (sets || (d && (d.kg||d.reps))) entries.push({ n:x.n, kg:d?.kg||"", reps:d?.reps||"", sets, of:x.s });
     delete S.draft[k];
   });
-  S.history.unshift({ date, wid, entries });
+  const session = { id:newId(), date, wid, entries, finishedAt:Date.now() };
+  S.history.unshift(session); S.pending.push(session.id);
   S.checks[wid] = {};
   save(); stopTimer(); renderWorkout(); renderHistory(); toast("Treino salvo no histórico");
+  Sync.flushSessions();
 }
 function toast(msg){
   const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
@@ -642,7 +673,7 @@ $("#view-guia").innerHTML = `
 /* ---------- history ---------- */
 function renderHistory(){
   const el = $("#hist");
-  if (!S.history.length){ el.innerHTML = `<p class="hist-empty">Nenhum treino salvo ainda. Registre carga e reps nos exercícios e toque em “Concluir treino”. Os dados ficam salvos neste navegador.</p>`; return; }
+  if (!S.history.length){ el.innerHTML = `<p class="hist-empty">Nenhum treino salvo ainda. Registre carga e reps nos exercícios e toque em “Concluir treino”.</p>`; return; }
   el.innerHTML = S.history.map(h => `<details><summary>${WORKOUTS[h.wid].name} <span>· ${esc(h.date)}</span></summary><ul>
     ${h.entries.map(e => `<li>${esc(e.n)} — <span class="num">${e.kg?esc(e.kg)+" kg":"sem carga"}${e.reps?" · "+esc(e.reps):""} · ${e.sets}/${e.of} séries</span></li>`).join("") || "<li>Sem registros</li>"}
   </ul></details>`).join("");
@@ -655,7 +686,83 @@ document.querySelector(".tabs").addEventListener("click", e => {
   ["treino","guia","hist"].forEach(v => $("#view-"+v).hidden = v !== b.dataset.view);
 });
 
+/* ---------- sincronização com o MongoDB (via /api) ----------
+   O aparelho continua sendo a fonte imediata (funciona offline). Com a chave
+   configurada, o estado e os treinos concluídos são enviados à API; ao abrir,
+   o app busca o que estiver mais novo no servidor. */
+const Sync = (() => {
+  const KEY_STORE = "ul4-key";
+  let key = ""; try { key = localStorage.getItem(KEY_STORE) || ""; } catch(e) {}
+  let timer = null, busy = false;
+
+  async function api(path, opts = {}){
+    const r = await fetch("api/" + path, { ...opts, headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", ...(opts.headers||{}) } });
+    if (r.status === 401) throw Object.assign(new Error("Chave inválida"), { auth:true });
+    if (!r.ok && r.status !== 409) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
+  function status(text, kind, msg){
+    const p = $("#sync-status"); p.textContent = text; p.className = "pill " + (kind||"");
+    if (msg) $("#sync-msg").textContent = msg;
+    $("#sync-form").hidden = !!key; $("#sync-on").hidden = !key;
+  }
+
+  async function pushState(){
+    if (!key || !navigator.onLine) return;
+    await api("state", { method:"PUT", body: JSON.stringify({ checks:S.checks, draft:S.draft, last:S.last, updatedAt:S.updatedAt||0 }) });
+  }
+  async function flushSessions(){
+    if (!key || !navigator.onLine) return;
+    for (const id of [...S.pending]) {
+      const h = S.history.find(x => x.id === id);
+      if (h) await api("sessions", { method:"POST", body: JSON.stringify(h) });
+      S.pending = S.pending.filter(x => x !== id); saveLocal();
+    }
+  }
+  async function pull(){
+    const { state, sessions } = await api("state");
+    if (state && (state.updatedAt||0) > (S.updatedAt||0)) {
+      Object.assign(S, { checks:state.checks||{}, draft:state.draft||{}, last:state.last||{}, updatedAt:state.updatedAt });
+    }
+    const byId = new Map(S.history.map(h => [h.id, h]));
+    (sessions||[]).forEach(h => { if (!byId.has(h.id)) byId.set(h.id, h); });
+    S.history = [...byId.values()].sort((a,b) => (b.finishedAt||0) - (a.finishedAt||0));
+    saveLocal(); renderWorkout(); renderHistory();
+    return state;
+  }
+  async function run(){
+    if (!key) return status("Só neste aparelho", "", "Conecte com a sua chave pessoal para guardar os treinos no MongoDB e acessá-los de qualquer aparelho.");
+    if (!navigator.onLine) return status("Offline", "", "Sem internet. As mudanças ficam no aparelho e são enviadas quando a conexão voltar.");
+    if (busy) return; busy = true; status("Sincronizando…");
+    try {
+      const remote = await pull();
+      await flushSessions();
+      if (!remote || (S.updatedAt||0) > (remote.updatedAt||0)) await pushState();
+      status("Sincronizado", "ok", `Última sincronização: ${new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}.`);
+    } catch(e) {
+      if (e.auth) { disconnect(); status("Chave inválida", "err", "A chave não confere com a APP_KEY configurada no servidor."); }
+      else status("Erro", "err", "Não foi possível falar com o banco agora. Os dados continuam salvos no aparelho.");
+    } finally { busy = false; }
+  }
+  function pushStateSoon(){
+    if (!key) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => pushState().then(() => status("Sincronizado", "ok")).catch(() => status("Pendente", "", "Mudanças ainda não enviadas. Tentaremos de novo em seguida.")), 1500);
+  }
+  function connect(k){ key = k.trim(); try { localStorage.setItem(KEY_STORE, key); } catch(e) {} run(); }
+  function disconnect(){ key = ""; try { localStorage.removeItem(KEY_STORE); } catch(e) {} status("Só neste aparelho"); }
+
+  $("#sync-form").addEventListener("submit", e => { e.preventDefault(); const v = $("#sync-key").value; if (v.trim()) { $("#sync-key").value = ""; connect(v); } });
+  $("#sync-now").addEventListener("click", run);
+  $("#sync-off").addEventListener("click", () => { disconnect(); toast("Desconectado do banco"); });
+  window.addEventListener("online", run);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") run(); });
+
+  return { run, pushStateSoon, flushSessions: () => flushSessions().catch(() => {}) };
+})();
+
 renderWeek(); renderWorkout(); renderHistory();
+Sync.run();
 
 /* ---------- notificação de fim do descanso ----------
    O service worker espera até o fim do descanso e mostra a notificação,

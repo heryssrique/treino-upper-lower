@@ -1,5 +1,5 @@
 // Service worker: deixa o app abrir sem internet (academia sem sinal).
-const CACHE = "treino-v2";
+const CACHE = "treino-v3";
 const SHELL = [
   "./",
   "./index.html",
@@ -38,6 +38,7 @@ self.addEventListener("fetch", e => {
 
   // Arquivos do app e fontes do Google: cache primeiro, atualiza em segundo plano.
   const sameOrigin = url.origin === self.location.origin;
+  if (sameOrigin && url.pathname.includes("/api/")) return; // dados do banco nunca vêm do cache
   const isFont = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
   if (!sameOrigin && !isFont) return;
   e.respondWith(

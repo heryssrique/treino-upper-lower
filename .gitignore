@@ -1,2 +1,7 @@
 .claude/
 treino-upper-lower.html
+node_modules/
+.env
+.env.*
+!.env.example
+.vercel/
