@@ -173,7 +173,7 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
 .pill.err{border-color:var(--red);color:var(--red)}
 .sync-form,.sync-on{display:flex;flex-wrap:wrap;gap:8px}
 .sync-form input{flex:1 1 200px;min-width:0;padding:10px 12px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);color:var(--ink);font:inherit}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .hist{display:flex;flex-direction:column;gap:8px}
 .hist details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .hist summary{font-weight:600;cursor:pointer}
@@ -196,7 +196,7 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
 
 <div class="wrap">
   <header>
-    <div class="hbtns"><button class="install" id="install" hidden>Instalar app</button><button class="install alt" id="notify" hidden>Ativar avisos de descanso</button></div>
+    <div class="hbtns"><button class="install" id="install" hidden>Instalar app</button><button class="install alt" id="notify" hidden>Ativar cronômetro na tela de bloqueio</button></div>
     <span class="eyebrow">Hipertrofia · 4 dias · 60 min + esteira</span>
     <h1>Upper / Lower</h1>
     <div class="profile">
@@ -221,7 +221,7 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
       <div class="sync-head"><h2>Banco de dados</h2><span class="pill" id="sync-status">Só neste aparelho</span></div>
       <p class="fine" id="sync-msg">Conecte com a sua chave pessoal para guardar os treinos no MongoDB e acessá-los de qualquer aparelho.</p>
       <form class="sync-form" id="sync-form">
-        <label for="sync-key" class="sr">Chave pessoal</label>
+        <label for="sync-key" class="vh">Chave pessoal</label>
         <input id="sync-key" type="password" autocomplete="current-password" placeholder="Chave pessoal (APP_KEY)">
         <button class="btn primary" type="submit">Conectar</button>
       </form>
@@ -764,9 +764,9 @@ const Sync = (() => {
 renderWeek(); renderWorkout(); renderHistory();
 Sync.run();
 
-/* ---------- notificação de fim do descanso ----------
-   O service worker espera até o fim do descanso e mostra a notificação,
-   mesmo com a tela bloqueada ou o app em segundo plano. */
+/* ---------- cronômetro do descanso na notificação ----------
+   Com o app em segundo plano ou a tela bloqueada, o service worker mostra o
+   tempo restante na notificação (atualizada a cada segundo) e avisa no fim. */
 const canNotify = "Notification" in window && "serviceWorker" in navigator;
 function updateNotifyBtn(){
   $("#notify").hidden = !(canNotify && Notification.permission === "default");
@@ -783,9 +783,17 @@ async function swPost(msg){
 }
 function scheduleNotify(label){
   if (!canNotify || Notification.permission !== "granted") return;
-  swPost({ type:"rest", at:tEnd, title:"Descanso encerrado", body:`Hora da próxima série — ${label}` });
+  swPost({ type:"rest", at:tEnd, total:tDur, label });
 }
 function cancelNotify(){ swPost({ type:"rest-cancel" }); }
+// Botões "+15s" e "Encerrar" da notificação: o service worker avisa a página.
+if (canNotify) navigator.serviceWorker.addEventListener("message", e => {
+  const d = e.data || {};
+  if (d.type === "rest-sync" && !$("#timer").hidden) {
+    tEnd = d.at; tDur = d.total; beeped = false; $("#timer").classList.remove("over"); tick();
+  }
+  if (d.type === "rest-stopped") { clearInterval(tInt); $("#timer").hidden = true; }
+});
 $("#notify").addEventListener("click", askNotify);
 updateNotifyBtn();
 
