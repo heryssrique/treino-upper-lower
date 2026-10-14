@@ -196,7 +196,7 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
 
 <div class="wrap">
   <header>
-    <div class="hbtns"><button class="install" id="install" hidden>Instalar app</button><button class="install alt" id="notify" hidden>Ativar cronômetro na tela de bloqueio</button></div>
+    <div class="hbtns"><button class="install" id="install" hidden>Instalar app</button><button class="install alt" id="notify" hidden>Ativar avisos de descanso</button></div>
     <span class="eyebrow">Hipertrofia · 4 dias · 60 min + esteira</span>
     <h1>Upper / Lower</h1>
     <div class="profile">
@@ -764,9 +764,9 @@ const Sync = (() => {
 renderWeek(); renderWorkout(); renderHistory();
 Sync.run();
 
-/* ---------- cronômetro do descanso na notificação ----------
-   Com o app em segundo plano ou a tela bloqueada, o service worker mostra o
-   tempo restante na notificação (atualizada a cada segundo) e avisa no fim. */
+/* ---------- notificação de fim do descanso ----------
+   O service worker espera até o fim do descanso e mostra a notificação,
+   mesmo com a tela bloqueada ou o app em segundo plano. */
 const canNotify = "Notification" in window && "serviceWorker" in navigator;
 function updateNotifyBtn(){
   $("#notify").hidden = !(canNotify && Notification.permission === "default");
@@ -783,17 +783,9 @@ async function swPost(msg){
 }
 function scheduleNotify(label){
   if (!canNotify || Notification.permission !== "granted") return;
-  swPost({ type:"rest", at:tEnd, total:tDur, label });
+  swPost({ type:"rest", at:tEnd, label });
 }
 function cancelNotify(){ swPost({ type:"rest-cancel" }); }
-// Botões "+15s" e "Encerrar" da notificação: o service worker avisa a página.
-if (canNotify) navigator.serviceWorker.addEventListener("message", e => {
-  const d = e.data || {};
-  if (d.type === "rest-sync" && !$("#timer").hidden) {
-    tEnd = d.at; tDur = d.total; beeped = false; $("#timer").classList.remove("over"); tick();
-  }
-  if (d.type === "rest-stopped") { clearInterval(tInt); $("#timer").hidden = true; }
-});
 $("#notify").addEventListener("click", askNotify);
 updateNotifyBtn();
 
