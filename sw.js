@@ -1,5 +1,5 @@
 // Service worker: deixa o app abrir sem internet (academia sem sinal).
-const CACHE = "treino-v5";
+const CACHE = "treino-v6";
 const SHELL = [
   "./",
   "./index.html",
@@ -18,6 +18,9 @@ self.addEventListener("activate", e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      // Versões antigas mostravam a contagem na notificação: remove a que sobrou.
+      .then(() => self.registration.getNotifications({ tag: "descanso" }))
+      .then(ns => ns.forEach(n => n.close()))
   );
 });
 

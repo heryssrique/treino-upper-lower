@@ -791,7 +791,11 @@ updateNotifyBtn();
 
 /* ---------- PWA: instalação e uso offline ---------- */
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  // Procura versão nova do service worker ao abrir e sempre que o app volta à tela,
+  // para o app instalado (que fica aberto em segundo plano) não ficar desatualizado.
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+  }).catch(() => {}));
 }
 let installEvt = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("#install").hidden = false; });
