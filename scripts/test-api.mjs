@@ -12,11 +12,13 @@ const { default: health } = await import("../api/health.js");
 const { closeDb } = await import("../api/_lib/db.js");
 
 // Chama um handler com req/res mínimos, como a Vercel faz.
-function call(handler, { method = "GET", url = "/", body, key = process.env.APP_KEY } = {}) {
+function call(handler, { method = "GET", url = "/", body, key = process.env.APP_KEY, origin } = {}) {
   return new Promise(resolve => {
-    const req = { method, url, body, headers: key ? { authorization: "Bearer " + key } : {} };
+    const headers = key ? { authorization: "Bearer " + key } : {};
+    if (origin) headers.origin = origin;
+    const req = { method, url, body, headers };
     const res = { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; },
-      end(data) { resolve({ status: this.statusCode, body: data ? JSON.parse(data) : null }); } };
+      end(data) { resolve({ status: this.statusCode, headers: this.headers, body: data ? JSON.parse(data) : null }); } };
     handler(req, res);
   });
 }
@@ -44,6 +46,15 @@ r = await call(sessions, { method: "POST", body: { ...s1, id: "x", wid: "ZZ" } }
 r = await call(state); assert.deepEqual(r.body.sessions.map(s => s.id), ["b2", "a1"], "mais recente primeiro");
 r = await call(sessions, { method: "DELETE", url: "/api/sessions?id=a1" }); assert.equal(r.body.deleted, 1);
 r = await call(state); assert.equal(r.body.sessions.length, 1);
+
+// CORS: o app no GitHub Pages pode chamar a API; outras origens não.
+const PAGES = "https://heryssrique.github.io";
+r = await call(state, { method: "OPTIONS", key: null, origin: PAGES });
+assert.equal(r.status, 204); assert.equal(r.headers["Access-Control-Allow-Origin"], PAGES);
+assert.match(r.headers["Access-Control-Allow-Headers"], /Authorization/);
+r = await call(state, { origin: PAGES }); assert.equal(r.status, 200); assert.equal(r.headers["Access-Control-Allow-Origin"], PAGES);
+r = await call(health, { origin: PAGES }); assert.equal(r.headers["Access-Control-Allow-Origin"], PAGES);
+r = await call(state, { origin: "https://site-qualquer.com" }); assert.equal(r.headers["Access-Control-Allow-Origin"], undefined);
 
 await closeDb(); await mem.stop();
 console.log("API ok: todos os testes passaram");

@@ -45,11 +45,11 @@ A API é protegida por uma chave pessoal (`APP_KEY`), enviada pelo app no cabeç
    ```
    node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
    ```
-3. **Vercel** — em <https://vercel.com/new>, importe este repositório do GitHub (sem framework, sem comando de build). Em *Settings → Environment Variables*, cadastre `MONGODB_URI`, `MONGODB_DB` (opcional) e `APP_KEY`. Depois faça o deploy.
+3. **Vercel (só a API)** — em <https://vercel.com/new>, importe este repositório do GitHub (Framework: *Other*, sem comando de build). Em *Settings → Environment Variables*, cadastre `MONGODB_URI`, `APP_KEY` e, se quiser, `MONGODB_DB`. Depois faça o deploy (*Deployments → Redeploy*).
 4. Abra `https://<seu-projeto>.vercel.app/api/health`. Deve aparecer `{"ok":true,"db":true}`.
-5. No app (endereço da Vercel), vá em **Histórico → Banco de dados**, digite a chave e toque em **Conectar**.
+5. No app (GitHub Pages), vá em **Histórico → Banco de dados**, informe o endereço da API (`https://<seu-projeto>.vercel.app`) e a chave, e toque em **Conectar**.
 
-> A sincronização só funciona no endereço da Vercel, porque o GitHub Pages não executa a API. Para usar no celular, instale o app a partir do endereço da Vercel.
+O app continua no GitHub Pages; a Vercel só executa a API. A API aceita chamadas apenas das origens em `ALLOWED_ORIGINS` (padrão: `https://heryssrique.github.io`; para mais de uma, separe por vírgula). Aberto direto no endereço da Vercel, o app usa a API do mesmo endereço e não pede o campo de endereço.
 
 ### Desenvolvimento local
 

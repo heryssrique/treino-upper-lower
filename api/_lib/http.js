@@ -8,6 +8,21 @@ export function authorized(req) {
   return timingSafeEqual(Buffer.from(got), Buffer.from(key));
 }
 
+// O app pode rodar em outro endereço (GitHub Pages) e chamar a API daqui.
+// Só as origens em ALLOWED_ORIGINS (separadas por vírgula) podem ler as respostas.
+const ORIGINS = (process.env.ALLOWED_ORIGINS || "https://heryssrique.github.io")
+  .split(",").map(o => o.trim().replace(/\/$/, "")).filter(Boolean);
+
+export function cors(req, res) {
+  const origin = req.headers.origin;
+  if (!origin || !ORIGINS.includes(origin)) return;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 export function send(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -18,6 +33,9 @@ export function send(res, status, body) {
 // Envolve um handler com autenticação, métodos permitidos e tratamento de erro.
 export function route(methods, fn) {
   return async (req, res) => {
+    cors(req, res);
+    // Pré-verificação do navegador (CORS): responde antes de exigir a chave.
+    if (req.method === "OPTIONS") { res.statusCode = 204; return res.end(); }
     if (!methods.includes(req.method)) { res.setHeader("Allow", methods.join(", ")); return send(res, 405, { error: "Método não permitido" }); }
     if (!authorized(req)) return send(res, 401, { error: "Chave inválida" });
     try { await fn(req, res); }

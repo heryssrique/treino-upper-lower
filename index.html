@@ -221,6 +221,8 @@ ol.steps,ul.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;
       <div class="sync-head"><h2>Banco de dados</h2><span class="pill" id="sync-status">Só neste aparelho</span></div>
       <p class="fine" id="sync-msg">Conecte com a sua chave pessoal para guardar os treinos no MongoDB e acessá-los de qualquer aparelho.</p>
       <form class="sync-form" id="sync-form">
+        <label for="sync-api" class="vh">Endereço da API</label>
+        <input id="sync-api" type="url" inputmode="url" autocomplete="url" placeholder="Endereço da API (https://…vercel.app)" hidden>
         <label for="sync-key" class="vh">Chave pessoal</label>
         <input id="sync-key" type="password" autocomplete="current-password" placeholder="Chave pessoal (APP_KEY)">
         <button class="btn primary" type="submit">Conectar</button>
@@ -691,12 +693,19 @@ document.querySelector(".tabs").addEventListener("click", e => {
    configurada, o estado e os treinos concluídos são enviados à API; ao abrir,
    o app busca o que estiver mais novo no servidor. */
 const Sync = (() => {
-  const KEY_STORE = "ul4-key";
-  let key = ""; try { key = localStorage.getItem(KEY_STORE) || ""; } catch(e) {}
+  const KEY_STORE = "ul4-key", BASE_STORE = "ul4-api";
+  // No GitHub Pages não há API: ela fica em outro servidor (Vercel), informado
+  // uma vez na conexão. Onde a API roda junto com o app, usa o mesmo endereço.
+  const needsBase = location.hostname.endsWith("github.io");
+  let key = "", base = "";
+  try { key = localStorage.getItem(KEY_STORE) || ""; base = localStorage.getItem(BASE_STORE) || ""; } catch(e) {}
+  if (needsBase && !base) key = "";
   let timer = null, busy = false;
+  $("#sync-api").hidden = !needsBase;
+  $("#sync-api").value = base;
 
   async function api(path, opts = {}){
-    const r = await fetch("api/" + path, { ...opts, headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", ...(opts.headers||{}) } });
+    const r = await fetch((base ? base + "/api/" : "api/") + path, { ...opts, headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", ...(opts.headers||{}) } });
     if (r.status === 401) throw Object.assign(new Error("Chave inválida"), { auth:true });
     if (!r.ok && r.status !== 409) throw new Error("HTTP " + r.status);
     return r.json();
@@ -749,10 +758,19 @@ const Sync = (() => {
     clearTimeout(timer);
     timer = setTimeout(() => pushState().then(() => status("Sincronizado", "ok")).catch(() => status("Pendente", "", "Mudanças ainda não enviadas. Tentaremos de novo em seguida.")), 1500);
   }
-  function connect(k){ key = k.trim(); try { localStorage.setItem(KEY_STORE, key); } catch(e) {} run(); }
+  function connect(k, b){
+    key = k.trim(); base = (b || "").trim().replace(/\/+$/, "").replace(/\/api$/, "");
+    try { localStorage.setItem(KEY_STORE, key); localStorage.setItem(BASE_STORE, base); } catch(e) {}
+    run();
+  }
   function disconnect(){ key = ""; try { localStorage.removeItem(KEY_STORE); } catch(e) {} status("Só neste aparelho"); }
 
-  $("#sync-form").addEventListener("submit", e => { e.preventDefault(); const v = $("#sync-key").value; if (v.trim()) { $("#sync-key").value = ""; connect(v); } });
+  $("#sync-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = $("#sync-key").value, b = $("#sync-api").value;
+    if (needsBase && !/^(https:\/\/[^\s/]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)/i.test(b.trim())) return status("Só neste aparelho", "err", "Informe o endereço da API, começando com https://");
+    if (v.trim()) { $("#sync-key").value = ""; connect(v, needsBase ? b : ""); }
+  });
   $("#sync-now").addEventListener("click", run);
   $("#sync-off").addEventListener("click", () => { disconnect(); toast("Desconectado do banco"); });
   window.addEventListener("online", run);
