@@ -28,6 +28,9 @@ export default route(["POST", "DELETE"], async (req, res) => {
     date: String(s.date || "").slice(0, 20),
     finishedAt: Number(s.finishedAt),
     entries: s.entries.map(e => ({
+      ...(e.ex ? { ex: String(e.ex).slice(0, 64), alt: !!e.alt } : {}),
+      // Carga e reps de cada série (versões novas do app).
+      ...(Array.isArray(e.log) ? { log: e.log.slice(0, 10).map(x => ({ kg: String(x?.kg ?? "").slice(0, 10), reps: String(x?.reps ?? "").slice(0, 10) })) } : {}),
       n: String(e.n || "").slice(0, 80),
       kg: String(e.kg || "").slice(0, 20),
       reps: String(e.reps || "").slice(0, 40),

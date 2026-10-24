@@ -20,15 +20,19 @@ export default route(["GET", "PUT"], async (req, res) => {
 
   const body = await readJson(req);
   const updatedAt = Number(body.updatedAt);
-  if (!Number.isFinite(updatedAt) || !isObj(body.checks) || !isObj(body.draft) || !isObj(body.last)) {
-    return send(res, 400, { error: "Estado inválido" });
-  }
-  const doc = { checks: body.checks, draft: body.draft, last: body.last, updatedAt };
-  // Versão da lista de exercícios a que as posições em checks/draft/last se referem.
-  if (Number.isInteger(body.plan) && body.plan > 0) doc.plan = body.plan;
+  // Formato atual (v3): séries do treino em andamento por exercício (cur) e últimas cargas (last).
+  // Formato antigo (sem v): checks/draft/last indexados pela posição do exercício.
+  const v3 = Number(body.v) >= 3;
+  const valid = Number.isFinite(updatedAt) && isObj(body.last)
+    && (v3 ? isObj(body.cur) : isObj(body.checks) && isObj(body.draft));
+  if (!valid) return send(res, 400, { error: "Estado inválido" });
+  const doc = v3
+    ? { v: Number(body.v), cur: body.cur, last: body.last, updatedAt }
+    : { checks: body.checks, draft: body.draft, last: body.last, updatedAt, ...(Number.isInteger(body.plan) && body.plan > 0 ? { plan: body.plan } : {}) };
+  const unset = v3 ? { checks: "", draft: "", plan: "" } : { v: "", cur: "" };
   const r = await states.updateOne(
     { _id: ID, $or: [{ updatedAt: { $lte: updatedAt } }, { updatedAt: { $exists: false } }] },
-    { $set: doc },
+    { $set: doc, $unset: unset },
     { upsert: false }
   );
   if (r.matchedCount === 0) {

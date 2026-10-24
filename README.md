@@ -5,7 +5,10 @@ App web do plano de hipertrofia Upper/Lower de 4 dias (60 min de musculação + 
 - Divisão semanal: Upper A (seg), Lower A (ter), Upper B (qui), Lower B (sex)
 - Séries, repetições e descanso de cada exercício
 - Cronômetro de descanso automático ao marcar cada série, com notificação no celular
-- Registro de carga e repetições, com histórico
+- Carga e repetições de cada série, com histórico
+- Sugestão de progressão (dupla progressão do Guia): quando subir a carga, manter ou reduzir
+- Alternativa para cada exercício dos dias Upper, com cargas registradas à parte
+- Tela sempre ligada enquanto houver série marcada
 - Técnica de cada exercício (montagem, execução, erro comum) e link direto para o vídeo no [MuscleWiki](https://musclewiki.com/pt-br/)
 - Instalável no Android (PWA) e funciona offline
 - Sincronização opcional com MongoDB
@@ -33,8 +36,10 @@ Coleções no banco `treino`:
 
 | Coleção    | Conteúdo |
 |------------|----------|
-| `state`    | um documento (`_id: "me"`) com séries marcadas, rascunhos de carga e últimas cargas por exercício |
-| `sessions` | um documento por treino concluído: `id`, `wid` (UA/LA/UB/LB), `date`, `finishedAt`, `entries[]` |
+| `state`    | um documento (`_id: "me"`): `cur` (treino em andamento: carga, reps e marcação de cada série) e `last` (última vez de cada exercício), indexados pelo id do exercício (ex.: `supino-reto-com-barra`; com a alternativa, `supino-reto-com-barra~alt`) |
+| `sessions` | um documento por treino concluído: `id`, `wid` (UA/LA/UB/LB), `date`, `finishedAt`, `entries[]` com `ex`, `alt` e `log` (carga e reps de cada série) |
+
+Dados de versões antigas do app (uma carga por exercício, indexada pela posição na lista) são convertidos automaticamente, no aparelho e ao baixar do banco.
 
 A API é protegida por uma chave pessoal (`APP_KEY`), enviada pelo app no cabeçalho `Authorization: Bearer <chave>`.
 

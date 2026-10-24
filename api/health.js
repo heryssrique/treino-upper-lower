@@ -1,6 +1,5 @@
 // GET /api/health → confirma que a API está no ar e alcança o banco (não exige chave).
 // Em caso de falha, informa a causa provável sem expor a string de conexão.
-import { createHash } from "node:crypto";
 import { getDb } from "./_lib/db.js";
 import { send, cors } from "./_lib/http.js";
 
@@ -20,23 +19,6 @@ export function diagnose(err) {
   return "erro desconhecido ao conectar no MongoDB";
 }
 
-// Mostra qual credencial o servidor está usando, sem revelar a senha: usuário,
-// cluster e tamanho + início do SHA-256 da senha (para comparar com a do Atlas).
-export function describeUri(uri = process.env.MONGODB_URI) {
-  try {
-    const raw = String(uri || "").trim();
-    const u = new URL(raw.replace(/^mongodb(\+srv)?:/, "http:"));
-    const pass = decodeURIComponent(u.password);
-    return {
-      user: decodeURIComponent(u.username),
-      host: u.hostname,
-      passLen: pass.length,
-      passSha: createHash("sha256").update(pass).digest("hex").slice(0, 8),
-      quoted: /^["']|["']$/.test(raw)
-    };
-  } catch { return null; }
-}
-
 export default async function health(req, res) {
   cors(req, res);
   try {
@@ -44,6 +26,6 @@ export default async function health(req, res) {
     send(res, 200, { ok: true, db: true });
   } catch (err) {
     console.error(err);
-    send(res, 503, { ok: false, db: false, reason: diagnose(err), using: describeUri() });
+    send(res, 503, { ok: false, db: false, reason: diagnose(err) });
   }
 }

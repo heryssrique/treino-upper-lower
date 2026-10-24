@@ -39,15 +39,26 @@ r = await call(state, { method: "PUT", body: { ...st, updatedAt: 2000 } }); asse
 r = await call(state, { method: "PUT", body: { checks: [] } }); assert.equal(r.status, 400);
 r = await call(state, { method: "PUT", body: { ...st, plan: 2, updatedAt: 3000 } }); assert.equal(r.status, 200);
 r = await call(state); assert.equal(r.body.state.plan, 2, "versão do plano é salva");
+// Formato v3: séries por exercício; os campos do formato antigo são removidos.
+const v3 = { v: 3, cur: { UA: { "supino-reto-com-barra": { sets: [{ kg: "60", reps: "8", done: true }] } } },
+  last: { "supino-reto-com-barra": { date: "24/10/2026", sets: [{ kg: "60", reps: "8" }] } }, updatedAt: 4000 };
+r = await call(state, { method: "PUT", body: v3 }); assert.equal(r.status, 200);
+r = await call(state); assert.equal(r.body.state.v, 3); assert.equal(r.body.state.cur.UA["supino-reto-com-barra"].sets[0].kg, "60");
+assert.equal(r.body.state.checks, undefined); assert.equal(r.body.state.plan, undefined, "campos antigos removidos");
+r = await call(state, { method: "PUT", body: { v: 3, last: {}, updatedAt: 5000 } }); assert.equal(r.status, 400, "v3 exige cur");
 
 const s1 = { id: "a1", wid: "UA", date: "01/10/2026", finishedAt: 10, entries: [{ n: "Supino reto com barra", kg: "50", reps: "8,8,8,8", sets: 4, of: 4 }] };
 r = await call(sessions, { method: "POST", body: s1 }); assert.equal(r.status, 200);
 r = await call(sessions, { method: "POST", body: s1 }); assert.equal(r.status, 200, "reenvio não duplica");
 r = await call(sessions, { method: "POST", body: { ...s1, id: "b2", finishedAt: 20, wid: "LB" } });
 r = await call(sessions, { method: "POST", body: { ...s1, id: "x", wid: "ZZ" } }); assert.equal(r.status, 400);
-r = await call(state); assert.deepEqual(r.body.sessions.map(s => s.id), ["b2", "a1"], "mais recente primeiro");
+const s3 = { ...s1, id: "c3", finishedAt: 30, entries: [{ ex: "supino-reto-com-barra", alt: false, n: "Supino reto com barra", log: [{ kg: "60", reps: "8" }, { kg: "60", reps: "7" }], kg: "60", reps: "8, 7", sets: 2, of: 4 }] };
+r = await call(sessions, { method: "POST", body: s3 }); assert.equal(r.status, 200);
+r = await call(state); assert.deepEqual(r.body.sessions.map(s => s.id), ["c3", "b2", "a1"], "mais recente primeiro");
+assert.deepEqual(r.body.sessions[0].entries[0].log, [{ kg: "60", reps: "8" }, { kg: "60", reps: "7" }], "séries guardadas");
+assert.equal(r.body.sessions[0].entries[0].ex, "supino-reto-com-barra");
 r = await call(sessions, { method: "DELETE", url: "/api/sessions?id=a1" }); assert.equal(r.body.deleted, 1);
-r = await call(state); assert.equal(r.body.sessions.length, 1);
+r = await call(state); assert.equal(r.body.sessions.length, 2);
 
 // CORS: o app no GitHub Pages pode chamar a API; outras origens não.
 const PAGES = "https://heryssrique.github.io";
