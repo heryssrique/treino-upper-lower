@@ -130,11 +130,16 @@ function exCard(wid, x, i){
   const sets = setsOf(wid, x), alt = isAlt(wid, x), last = lastOf(x, alt);
   const complete = sets.every(s => s.done), time = isTime(x), tip = suggest(x, i, alt);
   const ph = (j, f) => { const l = last && (last.sets[j] || last.sets[last.sets.length - 1]); return l && l[f] ? esc(l[f]) : "—"; };
-  return `<article class="ex ${i<2?"main":""} ${complete?"complete":""}" data-i="${i}">
+  // Abas Principal/Alternativa no topo do card: a escolhida define nome, cargas, sugestão e técnica.
+  const tabs = x.alt ? `<div class="ex-tabs" role="tablist" aria-label="Variação do exercício">
+        <button class="ex-tab" role="tab" data-alt="0" aria-selected="${!alt}">Principal</button>
+        <button class="ex-tab" role="tab" data-alt="1" aria-selected="${alt}">Alternativa</button></div>` : "";
+  return `<article class="ex ${i<2?"main":""} ${complete?"complete":""} ${alt?"is-alt":""}" data-i="${i}">
+      ${tabs}
       <div class="ex-top">
         <div class="idx num">${i+1}</div>
         <div><h3>${esc(alt ? x.alt.n : x.n)}</h3>
-          ${alt ? `<div class="alt-of">alternativa de ${esc(x.n)}</div>` : ""}
+          ${alt ? `<div class="alt-of">no lugar de ${esc(x.n)}</div>` : ""}
           <div class="tags">${i<2?'<span class="tag key">Progressão de carga</span>':""}${x.optional?'<span class="tag">Se sobrar tempo</span>':""}</div></div>
         <div class="prescr"><div class="sr num">${nSets(x)} × ${esc(x.r)}${isDeload() ? ' <span class="dl">deload</span>' : ""}</div><div class="rest">Descanso ${x.restTxt}</div></div>
       </div>
@@ -148,17 +153,19 @@ function exCard(wid, x, i){
         <div class="set-hint">Toque no número ao terminar a série: o descanso começa e os campos vazios repetem a série anterior.</div>
         ${last ? `<div class="last">Última vez (${esc(last.date)}): <b class="num">${esc(fmtLog(last.sets, time))}</b></div>` : ""}
         ${tip ? `<div class="tip">${tip}</div>` : ""}
-        ${x.alt ? `<button class="alt-toggle" data-alt="${alt ? 0 : 1}">${alt ? `Voltar para ${esc(x.n)}` : `Usar alternativa: ${esc(x.alt.n)}`}</button>` : ""}
       </div>
-      <details class="how"><summary>${x.alt?"Técnica, vídeo e alternativa":"Técnica e vídeo"}</summary>
-        <div class="how-body"><dl class="cue">
+      <details class="how"><summary>Técnica e vídeo</summary>
+        <div class="how-body">${alt ? `<dl class="cue">
+          <dt>Por que usar</dt><dd>${esc(x.alt.d)}</dd>
+          <dt>Prescrição</dt><dd>A mesma de ${esc(x.n)}: ${nSets(x)} × ${esc(x.r)}, descanso ${x.restTxt}. As cargas ficam registradas à parte.</dd>
+        </dl>
+        <div class="links"><a class="mw" href="${x.alt.link.url}" target="_blank" rel="noopener">${x.alt.link.url.startsWith(MW) ? "MuscleWiki · " : ""}${esc(x.alt.link.label)} ${ext}</a></div>` : `<dl class="cue">
           <dt>Montagem</dt><dd>${esc(x.m)}</dd>
           <dt>Execução</dt><dd>${esc(x.e)}</dd>
           <dt class="warn">Erro comum</dt><dd>${esc(x.x)}</dd>
           ${x.a?`<dt>Atenção</dt><dd>${esc(x.a)}</dd>`:""}
-          ${x.alt?`<dt>Alternativa</dt><dd><b>${esc(x.alt.n)}</b> — ${esc(x.alt.d)} <a class="alt-link" href="${x.alt.link.url}" target="_blank" rel="noopener">${esc(x.alt.link.label)} ${ext}</a></dd>`:""}
         </dl>
-        <div class="links">${x.links.map((l,li)=>`<a class="mw ${li?"alt":""}" href="${l.url}" target="_blank" rel="noopener">MuscleWiki · ${esc(l.label)} ${ext}</a>`).join("")}</div>
+        <div class="links">${x.links.map((l,li)=>`<a class="mw ${li?"alt":""}" href="${l.url}" target="_blank" rel="noopener">MuscleWiki · ${esc(l.label)} ${ext}</a>`).join("")}</div>`}
         </div></details>
     </article>`;
 }
@@ -222,8 +229,18 @@ $("#workout").addEventListener("click", e => {
   }
   const cyc = e.target.closest("[data-cycle]");
   if (cyc){ setCycleWeek(+cyc.dataset.cycle); renderWorkout(); return; }
-  const alt = e.target.closest(".alt-toggle");
-  if (alt){ entryOf(wid, x).alt = alt.dataset.alt === "1"; save(); card.outerHTML = exCard(wid, x, i); return; }
+  const tab = e.target.closest(".ex-tab");
+  if (tab){
+    const want = tab.dataset.alt === "1";
+    if (want === isAlt(wid, x)) return;
+    const open = card.querySelector("details.how").open; // mantém "Técnica e vídeo" como estava
+    entryOf(wid, x).alt = want; save();
+    card.outerHTML = exCard(wid, x, i);
+    const fresh = $(`#workout .ex[data-i="${i}"]`);
+    fresh.querySelector("details.how").open = open;
+    fresh.querySelector(`.ex-tab[data-alt="${want ? 1 : 0}"]`).focus();
+    return;
+  }
   if (e.target.id === "finish") return askFinish();
   if (e.target.id === "reset") { clearDay(wid); save(); renderWorkout(); keepAwake(anyActive()); return; }
   if (e.target.id === "confirm-yes") return finish();

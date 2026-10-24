@@ -1,5 +1,5 @@
 // Service worker: deixa o app abrir sem internet (academia sem sinal).
-const CACHE = "treino-v12";
+const CACHE = "treino-v13";
 const SHELL = [
   "./",
   "./index.html",

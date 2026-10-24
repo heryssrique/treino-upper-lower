@@ -59,8 +59,12 @@ try {
   ok("série marcada preenche carga, inicia descanso e relógio");
 
   // 3. Alternativa com carga separada; concluir inicia o ciclo
-  await p.click(`${card(2)} .alt-toggle`);
+  await p.click(`${card(2)} summary`); // abre "Técnica e vídeo": deve continuar aberto ao trocar de aba
+  await p.click(`${card(2)} .ex-tab[data-alt="1"]`);
   assert.equal(await p.textContent(`${card(2)} h3`), "Supino inclinado na máquina");
+  assert.equal(await p.getAttribute(`${card(2)} .ex-tab[data-alt="1"]`, "aria-selected"), "true");
+  assert.match(await p.textContent(`${card(2)} .how-body`), /Por que usar/);
+  assert.equal(await p.evaluate(i => document.querySelector(`.ex[data-i="${i}"] details.how`).open, 2), true);
   await doSets(p, 2, [["50", "10"]]);
   await doSets(p, 0, [["60", "8"], ["60", "8"], ["60", "8"]], 1); // a 1ª série já foi marcada no passo 2
   await finish(p);
@@ -69,7 +73,10 @@ try {
   assert.equal(st.history[0].entries.find(e => e.alt).n, "Supino inclinado na máquina");
   assert.match(await p.textContent(".cycle"), /Semana 1 de 8/);
   assert.match(await p.textContent(`${card(0)} .tip`), /suba para 62,5 kg/);
-  ok("alternativa separada, ciclo iniciado, sugestão de subir carga");
+  await p.click(`${card(2)} .ex-tab[data-alt="0"]`);
+  assert.equal(await p.textContent(`${card(2)} h3`), "Supino inclinado com halteres");
+  assert.match(await p.textContent(`${card(2)} .how-body`), /Montagem/);
+  ok("abas Principal/Alternativa no card, cargas separadas, ciclo iniciado, sugestão de subir carga");
 
   // 4. Recorde
   await doSets(p, 0, [["62,5", "8"], ["62,5", "7"], ["62,5", "7"], ["62,5", "6"]]);
@@ -112,7 +119,7 @@ try {
   assert.match(await p.textContent("#body-msg"), /\+0,5 kg\/semana — dentro da meta/);
   assert.equal(await p.locator("#body-chart .c-dot").count(), 5);
   ok("peso corporal: registro, gráfico e tendência");
-  if (process.env.SHOTS) { await p.screenshot({ path: process.env.SHOTS + "/hist.png", fullPage: true }); }
+  if (process.env.SHOTS) { await p.click("#tab-treino"); await p.click(`${card(2)} .ex-tab[data-alt="1"]`); await p.locator(card(2)).screenshot({ path: process.env.SHOTS + "/tab.png" }); await p.click(`${card(2)} .ex-tab[data-alt="0"]`); await p.click("#tab-hist"); await p.screenshot({ path: process.env.SHOTS + "/hist.png", fullPage: true }); }
 
   // 8. Backup: CSV e JSON, importação em aparelho novo
   const [csv] = await Promise.all([p.waitForEvent("download"), p.click("#exp-csv")]);
