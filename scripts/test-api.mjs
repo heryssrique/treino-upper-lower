@@ -37,6 +37,8 @@ r = await call(state, { method: "PUT", body: { ...st, last: {}, updatedAt: 500 }
 r = await call(state); assert.equal(r.body.state.updatedAt, 1000); assert.equal(r.body.state.last["UA:0"].kg, "50");
 r = await call(state, { method: "PUT", body: { ...st, updatedAt: 2000 } }); assert.equal(r.status, 200);
 r = await call(state, { method: "PUT", body: { checks: [] } }); assert.equal(r.status, 400);
+r = await call(state, { method: "PUT", body: { ...st, plan: 2, updatedAt: 3000 } }); assert.equal(r.status, 200);
+r = await call(state); assert.equal(r.body.state.plan, 2, "versão do plano é salva");
 
 const s1 = { id: "a1", wid: "UA", date: "01/10/2026", finishedAt: 10, entries: [{ n: "Supino reto com barra", kg: "50", reps: "8,8,8,8", sets: 4, of: 4 }] };
 r = await call(sessions, { method: "POST", body: s1 }); assert.equal(r.status, 200);

@@ -251,7 +251,8 @@ const MW = "https://musclewiki.com/pt-br/exercise/";
 const L = (slug, label) => ({ url: MW + slug, label });
 
 const WORKOUTS = {
-  UA: { name:"Upper A", color:"--red", focus:"Peito e puxada vertical", walk:"inclinação 3–6%", mob:"ombro",
+  UA: { name:"Upper A", color:"--red", focus:"Peito e bíceps (pesado)", walk:"inclinação 3–6%", mob:"ombro",
+    note:"Ênfase em peito e bíceps: 9 séries de peito e 6 de bíceps nesta sessão. O volume de ombro caiu porque os supinos já trabalham bastante a parte da frente do ombro.",
     ex:[
       { n:"Supino reto com barra", s:4, r:"6–8", rest:180, restTxt:"3 min",
         links:[L("barbell-bench-press","Barbell Bench Press")],
@@ -259,32 +260,37 @@ const WORKOUTS = {
         e:"Desça a barra até o esterno com controle, mas sem lentidão excessiva. Comece a empurrar no instante em que a barra toca o tórax.",
         x:"Cotovelos abertos a 90 graus. Mantenha entre 45 e 60 graus em relação ao tronco.",
         a:"Peça segurança a alguém quando a carga estiver alta — o desempenho tende a melhorar com um observador." },
-      { n:"Barra fixa ou puxada frente", s:4, r:"6–10", rest:150, restTxt:"2–3 min",
+      { n:"Barra fixa ou puxada frente", s:3, r:"6–10", rest:150, restTxt:"2–3 min",
         links:[L("pull-ups","Barra fixa · Pull Ups"), L("machine-pulldown","Puxada frente · Machine Pulldown")],
         m:"Pegada pronada pouco mais larga que os ombros.",
         e:"Na barra: partindo dos braços totalmente estendidos, puxe até o queixo passar da barra e desça devagar. Na puxada: incline o tronco cerca de 30 graus para trás com o peito estufado e traga a barra até o queixo apertando as escápulas.",
         x:"Puxar com os braços. Inicie deprimindo as escápulas — os cotovelos vão em direção aos bolsos." },
-      { n:"Desenvolvimento com halteres sentado", s:3, r:"8–10", rest:120, restTxt:"2 min",
-        links:[L("dumbbell-seated-overhead-press","Dumbbell Seated Overhead Press")],
-        m:"Banco com encosto quase vertical, lombar apoiada, halteres na altura das orelhas.",
-        e:"Empurre para cima sem bater os halteres no topo e desça até os cotovelos ficarem pouco abaixo da linha dos ombros.",
-        x:"Arquear a lombar para ajudar na subida. Se isso acontece, a carga está alta." },
+      { n:"Supino inclinado com halteres", s:3, r:"8–10", rest:120, restTxt:"2 min",
+        links:[L("dumbbell-incline-bench-press","Dumbbell Incline Bench Press")],
+        m:"Banco entre 30 e 45 graus, halteres na altura do peito, palmas voltadas para a frente.",
+        e:"Empurre até estender os braços, sem bater os halteres no topo. Desça até sentir alongamento no peitoral.",
+        x:"Inclinação acima de 45 graus transfere o trabalho do peitoral para o ombro." },
       { n:"Remada baixa no cabo", s:3, r:"10–12", rest:90, restTxt:"90 s",
         links:[L("machine-seated-cable-row","Machine Seated Cable Row")],
         m:"Joelhos levemente flexionados, tronco ereto e estável.",
         e:"Puxe o triângulo até a região do umbigo com os cotovelos rentes ao corpo e retorne controlando a carga.",
         x:"Usar impulso de tronco. Se o tronco balança a cada repetição, a carga está alta demais." },
-      { n:"Elevação lateral", s:3, r:"12–15", rest:60, restTxt:"60 s",
-        links:[L("dumbbell-lateral-raise","Dumbbell Lateral Raise")],
-        m:"Leve inclinação do tronco à frente, cotovelos levemente flexionados e fixos.",
-        e:"Eleve até a linha dos ombros com o cotovelo liderando o movimento, não a mão.",
-        x:"Carga alta com impulso de tronco. É um exercício de isolamento — peso leve e execução limpa." },
-      { n:"Rosca direta (barra W)", s:3, r:"10–12", rest:90, restTxt:"90 s",
+      { n:"Crucifixo na máquina (peck deck)", s:2, r:"12–15", rest:60, restTxt:"60 s",
+        links:[L("machine-pec-fly","Machine Pec Fly")],
+        m:"Banco ajustado para as pegadas ficarem na altura do peito, costas apoiadas, cotovelos levemente flexionados e fixos.",
+        e:"Feche os braços em arco, como num abraço, até as mãos quase se tocarem. Aperte o peitoral 1 segundo e abra devagar até sentir alongamento, sem deixar o peso bater.",
+        x:"Empurrar com os braços, dobrando e esticando o cotovelo. O ângulo do cotovelo fica fixo — o movimento é só no ombro." },
+      { n:"Rosca direta (barra W)", s:3, r:"8–10", rest:90, restTxt:"90 s",
         links:[L("ez-bar-curl","Ez Bar Curl")],
         m:"Cotovelos colados ao tronco, pegada supinada na parte angulada da barra.",
         e:"Flexione apenas o cotovelo, mantendo o ombro imóvel do início ao fim.",
         x:"Projetar os cotovelos à frente no topo, o que retira tensão do bíceps." },
-      { n:"Tríceps na corda", s:3, r:"10–12", rest:60, restTxt:"60 s",
+      { n:"Rosca inclinada com halteres", s:3, r:"10–12", rest:60, restTxt:"60 s",
+        links:[L("dumbbell-incline-curl","Dumbbell Incline Curl")],
+        m:"Banco inclinado a 45–60 graus, costas apoiadas, braços pendendo na vertical atrás da linha do tronco, palmas para a frente.",
+        e:"Flexione o cotovelo sem mover o ombro e desça até estender o braço por completo. A posição alonga a cabeça longa do bíceps — é o complemento da rosca com barra.",
+        x:"Trazer os cotovelos para a frente na subida, o que tira o alongamento que é o motivo do exercício." },
+      { n:"Tríceps na corda", s:2, r:"10–12", rest:60, restTxt:"60 s",
         links:[L("cable-rope-pushdown","Cable Rope Pushdown")],
         m:"Polia no ponto mais alto. Alguns passos para trás e quadril levemente recuado, para dar espaço aos braços estenderem por completo.",
         e:"Vale a imagem de “braços de T-Rex”: braço e cotovelo colados ao tronco, com o antebraço como única parte móvel. Estenda até sentir a contração do tríceps.",
@@ -330,48 +336,50 @@ const WORKOUTS = {
         e:"Contraia glúteo e abdômen ao mesmo tempo. Quadril nem elevado nem caído.",
         x:"Prender a respiração. Respire de forma contínua durante toda a isometria." }
     ]},
-  UB: { name:"Upper B", color:"--yellow", focus:"Ombro e remada horizontal", walk:"inclinação 3–6%", mob:"ombro",
+  UB: { name:"Upper B", color:"--yellow", focus:"Peito superior, costas e bíceps", walk:"inclinação 3–6%", mob:"ombro",
+    note:"Face pull e elevação lateral ficam para proteger e equilibrar o ombro, que trabalha muito com o volume extra de supino.",
     ex:[
-      { n:"Desenvolvimento militar (barra ou halteres)", s:4, r:"6–8", rest:180, restTxt:"3 min",
-        links:[L("barbell-overhead-press","Barra · Barbell Overhead Press"), L("dumbbell-overhead-press","Halteres · Dumbbell Overhead Press")],
-        m:"Barra na altura das clavículas, pegada pouco mais larga que os ombros, glúteo e abdômen contraídos.",
-        e:"Empurre para cima movendo a cabeça levemente para trás na passagem da barra. Trave os cotovelos com a barra sobre a cabeça, não à frente dela.",
-        x:"Hiperextensão lombar. Se a lombar arqueia muito, a carga está alta." },
+      { n:"Supino inclinado com barra", s:4, r:"6–8", rest:180, restTxt:"3 min",
+        links:[L("barbell-incline-bench-press","Barbell Incline Bench Press")],
+        m:"Banco a 30 graus (no máximo 45), escápulas retraídas e firmes, pés plantados, pegada pouco mais larga que os ombros.",
+        e:"Desça a barra com controle até a parte alta do peito, logo abaixo das clavículas, e empurre de volta na mesma linha.",
+        x:"Banco inclinado demais ou cotovelos totalmente abertos: o trabalho vai para o ombro. Mantenha 45 a 60 graus entre braço e tronco.",
+        a:"Use as travas de segurança do rack ou peça ajuda a alguém nas séries pesadas." },
       { n:"Remada curvada com barra", s:4, r:"8–10", rest:150, restTxt:"2–3 min",
         links:[L("barbell-bent-over-row","Barbell Bent Over Row")],
         m:"Pegada na largura dos ombros, pronada ou supinada. Tronco inclinado à frente com as costas retas.",
         e:"Puxe o peso em direção à parte superior do abdômen e desça de forma controlada.",
         x:"Subir o tronco a cada repetição. O ângulo do tronco permanece fixo durante toda a série." },
-      { n:"Supino inclinado com halteres", s:3, r:"8–10", rest:120, restTxt:"2 min",
-        links:[L("dumbbell-incline-bench-press","Dumbbell Incline Bench Press")],
-        m:"Banco entre 30 e 45 graus, halteres na altura do peito, palmas voltadas para a frente.",
-        e:"Empurre até estender os braços, sem bater os halteres no topo. Desça até sentir alongamento no peitoral.",
-        x:"Inclinação acima de 45 graus transfere o trabalho do peitoral para o ombro." },
       { n:"Puxada pegada neutra", s:3, r:"10–12", rest:90, restTxt:"90 s",
         links:[L("neutral-pulldown","Neutral Pulldown")],
         m:"Triângulo ou barra com pegada paralela, palmas voltadas uma para a outra.",
         e:"Mesma mecânica da puxada frente. A pegada neutra costuma ser mais confortável para o ombro.",
         x:"Encolher os ombros no início da puxada em vez de deprimir as escápulas." },
+      { n:"Crucifixo na máquina (peck deck)", s:2, r:"12–15", rest:60, restTxt:"60 s",
+        links:[L("machine-pec-fly","Machine Pec Fly")],
+        m:"Banco ajustado para as pegadas ficarem na altura do peito, costas apoiadas, cotovelos levemente flexionados e fixos.",
+        e:"Feche os braços em arco, como num abraço, até as mãos quase se tocarem. Aperte o peitoral 1 segundo e abra devagar até sentir alongamento, sem deixar o peso bater.",
+        x:"Empurrar com os braços, dobrando e esticando o cotovelo. O ângulo do cotovelo fica fixo — o movimento é só no ombro." },
       { n:"Elevação lateral no cabo", s:3, r:"12–15", rest:60, restTxt:"60 s",
         links:[L("cable-low-single-arm-lateral-raise","Cable Low Single Arm Lateral Raise")],
         m:"Polia na posição mais baixa, cabo passando pela frente do corpo, pegada na mão oposta à polia.",
         e:"Eleve até a linha do ombro com o cotovelo liderando. O cabo mantém tensão constante também na parte inicial do movimento, onde o haltere quase não carrega.",
         x:"Girar o tronco para ganhar amplitude. Um braço de cada vez, tronco fixo." },
-      { n:"Face pull", s:3, r:"15", rest:60, restTxt:"60 s",
+      { n:"Face pull", s:2, r:"15", rest:60, restTxt:"60 s",
         links:[L("machine-face-pulls","Cable Rope Face Pulls")],
         m:"Corda posicionada na altura do rosto.",
         e:"Puxe a corda em direção à testa separando as mãos, com os cotovelos altos, terminando em rotação externa.",
         x:"Puxar como uma remada, com os cotovelos baixos e próximos ao tronco." },
-      { n:"Tríceps testa", s:3, r:"10–12", rest:75, restTxt:"75 s",
-        links:[L("barbell-skullcrusher","Barra W · Barbell Skullcrusher"), L("dumbbell-skullcrusher","Halteres · Dumbbell Skullcrusher")],
-        m:"Deitado no banco, barra W ou halteres com os braços na vertical.",
-        e:"Flexione apenas o cotovelo, levando o peso em direção à testa ou pouco atrás da cabeça, e estenda de volta sem travar bruscamente.",
-        x:"Mover o ombro junto, transformando o exercício em um pullover. O braço fica parado." },
-      { n:"Rosca martelo", s:2, r:"12", rest:60, restTxt:"60 s", optional:true,
+      { n:"Rosca martelo", s:3, r:"10–12", rest:60, restTxt:"60 s",
         links:[L("dumbbell-hammer-curl","Dumbbell Hammer Curl")],
         m:"Halteres com pegada neutra, palmas voltadas uma para a outra.",
         e:"Flexione o cotovelo mantendo a pegada neutra do início ao fim. Trabalha braquial e braquiorradial, que somam espessura ao braço.",
-        x:"Balançar o tronco. É o último exercício da sessão — carga leve e controle." }
+        x:"Balançar o tronco. Carga moderada e controle." },
+      { n:"Tríceps testa", s:2, r:"10–12", rest:75, restTxt:"75 s",
+        links:[L("barbell-skullcrusher","Barra W · Barbell Skullcrusher"), L("dumbbell-skullcrusher","Halteres · Dumbbell Skullcrusher")],
+        m:"Deitado no banco, barra W ou halteres com os braços na vertical.",
+        e:"Flexione apenas o cotovelo, levando o peso em direção à testa ou pouco atrás da cabeça, e estenda de volta sem travar bruscamente.",
+        x:"Mover o ombro junto, transformando o exercício em um pullover. O braço fica parado." }
     ]},
   LB: { name:"Lower B", color:"--green", focus:"Posterior de coxa e glúteo", walk:"SEM inclinação", mob:"quadril",
     note:"Dia mais curto de propósito (~50 min). Terra romeno e búlgaro são muito exigentes em recuperação — volume extra aqui prejudicaria a segunda-feira seguinte.",
@@ -427,6 +435,34 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toStri
 S.pending ||= [];
 S.history.forEach((h, i) => { if (!h.id) { h.id = newId(); h.finishedAt = Date.now() - i; S.pending.push(h.id); } });
 const exKey = (w,i) => w + ":" + i;
+
+/* Cargas e rascunhos são guardados pela posição do exercício (ex.: "UB:2").
+   Quando a lista de um dia muda, remapeia pelo nome para cada carga continuar
+   no exercício certo; exercícios que saíram do plano são descartados. */
+const PLAN = 2;
+const PLAN_OLD = {
+  UA: ["Supino reto com barra","Barra fixa ou puxada frente","Desenvolvimento com halteres sentado","Remada baixa no cabo","Elevação lateral","Rosca direta (barra W)","Tríceps na corda"],
+  UB: ["Desenvolvimento militar (barra ou halteres)","Remada curvada com barra","Supino inclinado com halteres","Puxada pegada neutra","Elevação lateral no cabo","Face pull","Tríceps testa","Rosca martelo"]
+};
+function migratePlan(st){
+  if (!st || (st.plan || 1) >= PLAN) return false;
+  const keyOf = {};
+  Object.keys(PLAN_OLD).forEach(w => WORKOUTS[w].ex.forEach((x,i) => keyOf[x.n] = exKey(w,i)));
+  ["last","draft"].forEach(f => {
+    const out = {};
+    Object.entries(st[f] || {}).forEach(([k,v]) => {
+      const [w,i] = k.split(":");
+      if (!PLAN_OLD[w]) { out[k] = v; return; }
+      const nk = keyOf[PLAN_OLD[w][+i]];
+      if (nk) out[nk] = v;
+    });
+    st[f] = out;
+  });
+  if (st.checks) Object.keys(PLAN_OLD).forEach(w => delete st.checks[w]);
+  st.plan = PLAN;
+  return true;
+}
+if (migratePlan(S)) { S.updatedAt = Date.now(); saveLocal(); }
 
 /* ---------- helpers ---------- */
 const $ = (s, r=document) => r.querySelector(s);
@@ -718,7 +754,7 @@ const Sync = (() => {
 
   async function pushState(){
     if (!key || !navigator.onLine) return;
-    await api("state", { method:"PUT", body: JSON.stringify({ checks:S.checks, draft:S.draft, last:S.last, updatedAt:S.updatedAt||0 }) });
+    await api("state", { method:"PUT", body: JSON.stringify({ checks:S.checks, draft:S.draft, last:S.last, plan:S.plan||PLAN, updatedAt:S.updatedAt||0 }) });
   }
   async function flushSessions(){
     if (!key || !navigator.onLine) return;
@@ -730,8 +766,9 @@ const Sync = (() => {
   }
   async function pull(){
     const { state, sessions } = await api("state");
+    migratePlan(state); // estado salvo no banco com a lista antiga de exercícios
     if (state && (state.updatedAt||0) > (S.updatedAt||0)) {
-      Object.assign(S, { checks:state.checks||{}, draft:state.draft||{}, last:state.last||{}, updatedAt:state.updatedAt });
+      Object.assign(S, { checks:state.checks||{}, draft:state.draft||{}, last:state.last||{}, plan:state.plan, updatedAt:state.updatedAt });
     }
     const byId = new Map(S.history.map(h => [h.id, h]));
     (sessions||[]).forEach(h => { if (!byId.has(h.id)) byId.set(h.id, h); });

@@ -24,6 +24,8 @@ export default route(["GET", "PUT"], async (req, res) => {
     return send(res, 400, { error: "Estado inválido" });
   }
   const doc = { checks: body.checks, draft: body.draft, last: body.last, updatedAt };
+  // Versão da lista de exercícios a que as posições em checks/draft/last se referem.
+  if (Number.isInteger(body.plan) && body.plan > 0) doc.plan = body.plan;
   const r = await states.updateOne(
     { _id: ID, $or: [{ updatedAt: { $lte: updatedAt } }, { updatedAt: { $exists: false } }] },
     { $set: doc },
