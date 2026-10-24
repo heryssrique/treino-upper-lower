@@ -9,7 +9,9 @@
     "dev": "node scripts/dev.mjs",
     "test:api": "node scripts/test-api.mjs",
     "test:e2e": "node tests/e2e.mjs",
-    "test": "npm run test:api && npm run test:e2e"
+    "test:watch": "node tests/watch.mjs",
+    "watch:plan": "node scripts/watch-plan.mjs",
+    "test": "npm run test:api && npm run test:watch && npm run test:e2e"
   },
   "dependencies": {
     "mongodb": "^6.21.0"
