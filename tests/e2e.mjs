@@ -49,6 +49,12 @@ try {
   assert.equal(st.cur.LA["agachamento-livre"].sets[0].done, true);
   ok("migração do formato antigo");
 
+  // Treino vazio: nada é salvo e o ciclo não começa
+  await p.click("#finish");
+  assert.equal(await p.locator("#confirm-yes").count(), 0);
+  st = await S(p); assert.equal(st.history.length, 0); assert.equal(st.cycle, null);
+  ok("concluir treino vazio não salva nem inicia o ciclo");
+
   // 2. Séries: campos vazios repetem a última vez/série anterior, descanso, relógio
   assert.equal(await p.getAttribute(field(0, 3, "kg"), "placeholder"), "60");
   assert.match(await p.textContent(`${card(0)} .tip`), /Mantenha 60 kg/);
@@ -56,7 +62,11 @@ try {
   assert.equal(await p.inputValue(field(0, 0, "kg")), "60");
   assert.equal(await p.isVisible("#timer"), true);
   assert.match(await p.textContent("#clock"), /min de treino/);
-  ok("série marcada preenche carga, inicia descanso e relógio");
+  await p.click(`${card(0)} .set[data-j="0"]`);
+  assert.equal(await p.isVisible("#timer"), false, "desmarcar para o descanso");
+  await p.click(`${card(0)} .set[data-j="0"]`);
+  assert.match(await p.textContent("#t-label"), /Série 1\/4/);
+  ok("série marcada preenche carga, inicia descanso e relógio; desmarcar para o descanso");
 
   // 3. Alternativa com carga separada; concluir inicia o ciclo
   await p.click(`${card(2)} summary`); // abre "Técnica e vídeo": deve continuar aberto ao trocar de aba
@@ -104,13 +114,22 @@ try {
   await p.hover("#evo-body svg", { position: { x: 300, y: 80 } });
   assert.match(await p.textContent("#evo-body .c-tip"), /1RM est\./);
   await p.click("#hist details >> nth=0"); await p.click('#hist [data-act="edit"] >> nth=0');
-  await p.fill("#hist .h-edit input[data-f='reps'] >> nth=3", "8"); await p.click("#hist .h-edit button[type=submit]");
+  await p.fill("#hist .h-edit input[data-f='reps'] >> nth=3", "8");
+  for (let k = 0; k < 4; k++) await p.fill(`#hist .h-edit input[data-f='kg'] >> nth=${k}`, "50");
+  await p.click("#hist .h-edit button[type=submit]");
   st = await S(p);
   assert.equal(st.last["supino-reto-com-barra"].sets[3].reps, "8");
+  assert.equal(st.history[0].entries[0].pr, undefined, "editar recalcula o recorde");
   await p.click("#hist details >> nth=0"); await p.click('#hist [data-act="del"] >> nth=0'); await p.click('#hist [data-act="del-yes"]');
   st = await S(p);
   assert.equal(st.history.length, 1); assert.equal(st.last["supino-reto-com-barra"].sets[0].kg, "60", "última vez volta ao treino anterior");
   ok("volume semanal, gráfico com tooltip, editar e apagar treino");
+
+  // Campos vindos do banco/backup são escapados
+  await p.evaluate(() => { S.history.unshift({ id: "x", wid: "UA", date: "01/01/2026", dur: "<img id=xss1>", entries: [{ ex: "face-pull", n: "F", log: [], sets: "<img id=xss2>", of: 1 }] }); renderSessions(); });
+  assert.equal(await p.locator("#xss1, #xss2").count(), 0);
+  await p.evaluate(() => { S.history.shift(); renderSessions(); });
+  ok("histórico escapa campos de texto");
 
   // 7. Peso corporal com tendência
   await p.evaluate(() => { const d = n => { const x = new Date(); x.setDate(x.getDate() - n); return isoDay(x); };

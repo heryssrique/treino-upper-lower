@@ -79,7 +79,7 @@ function renderBody(){
   if (pts.length > 1) mountChart(chartEl, { points: pts.map(p => ({ x: parseIso(p.d).getTime(), y: p.kg })), tip: i => `<b>${fmtDay(parseIso(pts[i].d))}</b>${fmtNum(pts[i].kg)} kg` });
   else chartEl.innerHTML = "";
   $("#body-list").innerHTML = pts.slice(-6).reverse().map(p => `<li><span class="num">${fmtDay(parseIso(p.d))} · ${fmtNum(p.kg)} kg</span>
-    <button class="link-btn" data-body-del="${p.d}" aria-label="Apagar pesagem de ${fmtDay(parseIso(p.d))}">apagar</button></li>`).join("");
+    <button class="link-btn" data-body-del="${esc(p.d)}" aria-label="Apagar pesagem de ${fmtDay(parseIso(p.d))}">apagar</button></li>`).join("");
 }
 $("#body-form").addEventListener("submit", e => {
   e.preventDefault();
@@ -109,11 +109,11 @@ function renderSessions(){
           <label class="vh" for="ed-${ei}-${si}-reps">Reps da série ${si + 1}</label><input id="ed-${ei}-${si}-reps" class="num" inputmode="numeric" data-e="${ei}" data-s="${si}" data-f="reps" value="${esc(s.reps)}" placeholder="reps">`).join("") || `<span class="fine">Registro antigo, sem séries.</span>`}
         </fieldset>`).join("")}
         <div class="h-actions"><button class="btn primary sm" type="submit">Salvar</button><button class="btn ghost sm" type="button" data-act="cancel">Cancelar</button></div></form>`
-      : `<ul>${h.entries.map(e => `<li>${esc(e.n)}${e.alt ? " <i>(alternativa)</i>" : ""}${e.pr ? ` <span class="pr" title="Recorde">🏆</span>` : ""} — <span class="num">${e.log ? esc(fmtLog(e.log)) : (e.kg ? esc(e.kg) + " kg" : "sem carga") + (e.reps ? " · " + esc(e.reps) : "")} · ${e.sets}/${e.of} séries</span></li>`).join("") || "<li>Sem registros</li>"}</ul>
+      : `<ul>${h.entries.map(e => `<li>${esc(e.n)}${e.alt ? " <i>(alternativa)</i>" : ""}${e.pr ? ` <span class="pr" title="Recorde">🏆</span>` : ""} — <span class="num">${e.log ? esc(fmtLog(e.log)) : (e.kg ? esc(e.kg) + " kg" : "sem carga") + (e.reps ? " · " + esc(e.reps) : "")} · ${esc(e.sets)}/${esc(e.of)} séries</span></li>`).join("") || "<li>Sem registros</li>"}</ul>
         <div class="h-actions">${h.id === confirmDel
           ? `<span class="fine">Apagar este treino?</span><button class="btn danger sm" data-act="del-yes" data-id="${esc(h.id)}">Apagar</button><button class="btn ghost sm" data-act="cancel">Voltar</button>`
           : `<button class="btn ghost sm" data-act="edit" data-id="${esc(h.id)}">Editar</button><button class="btn ghost sm" data-act="del" data-id="${esc(h.id)}">Apagar</button>`}</div>`;
-    return `<details ${open ? "open" : ""}><summary>${esc((WORKOUTS[h.wid] || {}).name || h.wid)} <span>· ${esc(h.date)}${h.dur ? ` · ${h.dur} min` : ""}${prs ? ` · 🏆 ${prs}` : ""}</span></summary>${body}</details>`;
+    return `<details ${open ? "open" : ""}><summary>${esc((WORKOUTS[h.wid] || {}).name || h.wid)} <span>· ${esc(h.date)}${h.dur ? ` · ${esc(h.dur)} min` : ""}${prs ? ` · 🏆 ${prs}` : ""}</span></summary>${body}</details>`;
   }).join("");
 }
 // Depois de editar ou apagar: "última vez" de cada exercício volta a ser o treino mais recente que sobrou.
@@ -123,6 +123,16 @@ function refreshLast(keys){
     const e = h && h.entries.find(e => e.log && entryKey(e) === k);
     S.last[k] = e ? { date: h.date, sets: e.log.map(s => ({ kg: s.kg, reps: s.reps })), t: Date.now() } : { date: "", sets: [], t: Date.now() };
   });
+}
+// Recalcula os recordes dos exercícios afetados em todos os treinos, em ordem; os que mudam voltam à fila de envio.
+function refreshRecords(keys){
+  const old = sessionsOld();
+  old.forEach((h, i) => h.entries.forEach(en => {
+    if (!en.log || !keys.includes(entryKey(en))) return;
+    const pr = records(en, old.slice(0, i)), was = JSON.stringify(en.pr || []);
+    if (pr.length) en.pr = pr; else delete en.pr;
+    if (JSON.stringify(pr) !== was && !S.pending.includes(h.id)) S.pending.push(h.id);
+  }));
 }
 $("#hist").addEventListener("click", e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
@@ -135,7 +145,7 @@ $("#hist").addEventListener("click", e => {
     const h = S.history.find(x => x.id === id);
     S.history = S.history.filter(x => x.id !== id);
     if (S.pending.includes(id)) S.pending = S.pending.filter(x => x !== id); else S.delPending.push(id);
-    if (h) refreshLast(h.entries.filter(e => e.log).map(entryKey));
+    if (h) { const keys = h.entries.filter(e => e.log).map(entryKey); refreshLast(keys); refreshRecords(keys); }
     confirmDel = null; save(); renderWorkout(); renderHistory(); toast("Treino apagado"); Sync.flushSessions();
     return;
   }
@@ -148,7 +158,8 @@ $("#hist").addEventListener("submit", e => {
   h.entries.forEach(en => { if (!en.log) return;
     en.kg = [...new Set(en.log.map(s => s.kg).filter(Boolean))].join("/"); en.reps = en.log.map(s => s.reps || "—").join(", "); });
   if (!S.pending.includes(h.id)) S.pending.push(h.id);
-  refreshLast(h.entries.filter(en => en.log).map(entryKey));
+  const keys = h.entries.filter(en => en.log).map(entryKey);
+  refreshLast(keys); refreshRecords(keys);
   editing = null; save(); renderWorkout(); renderHistory(); toast("Treino atualizado"); Sync.flushSessions();
 });
 

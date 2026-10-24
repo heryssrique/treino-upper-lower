@@ -1,16 +1,28 @@
-const todayIdx = (new Date().getDay() + 6) % 7;
-function defaultDay(){
-  for (let k=0;k<7;k++){ const i=(todayIdx+k)%7; if (WEEK[i].w) return i; }
+// Função, não constante: o app instalado fica aberto por dias e "hoje" precisa virar à meia-noite.
+const todayIdx = () => (new Date().getDay() + 6) % 7;
+function defaultDay(t = todayIdx()){
+  for (let k=0;k<7;k++){ const i=(t+k)%7; if (WEEK[i].w) return i; }
   return 0;
 }
 let selDay = defaultDay();
 try { const h = location.hash.slice(1); const i = WEEK.findIndex(x => x.w === h); if (i>=0) selDay = i; } catch(e) {}
+// Virou o dia com o app aberto: atualiza a semana; se estava no treino padrão, vai para o do novo dia.
+let shownToday = todayIdx();
+function syncToday(){
+  const t = todayIdx(); if (t === shownToday) return;
+  const wasDefault = selDay === defaultDay(shownToday);
+  shownToday = t;
+  if (wasDefault) selDay = defaultDay();
+  renderWeek(); renderWorkout();
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") syncToday(); });
+setInterval(syncToday, 60000);
 
 /* ---------- week strip ---------- */
 function renderWeek(){
   $("#week").innerHTML = WEEK.map((x,i) => {
     const wk = x.w && WORKOUTS[x.w];
-    const cls = ["day", x.w ? "" : "rest", i===todayIdx ? "today":"", i===selDay ? "sel":""].join(" ");
+    const cls = ["day", x.w ? "" : "rest", i===todayIdx() ? "today":"", i===selDay ? "sel":""].join(" ");
     const style = wk ? `style="--c:var(${wk.color})"` : "";
     return x.w
       ? `<button class="${cls}" ${style} data-i="${i}" aria-pressed="${i===selDay}"><span class="d">${x.d}</span><span class="w">${wk.name.replace("Upper","UP").replace("Lower","LO")}</span><span class="plate"></span></button>`
@@ -150,7 +162,7 @@ function exCard(wid, x, i){
         <input class="num" data-f="reps" data-j="${j}" inputmode="numeric" enterkeyhint="done" aria-label="${time ? "Segundos" : "Repetições"} da série ${j+1}" value="${esc(s.reps)}" placeholder="${ph(j, "reps")}">`).join("")}
       </div>
       <div class="ex-info">
-        <div class="set-hint">Toque no número ao terminar a série: o descanso começa e os campos vazios repetem a série anterior.</div>
+        ${i === 0 ? `<div class="set-hint">Toque no número ao terminar a série: o descanso começa e os campos vazios repetem a série anterior.</div>` : ""}
         ${last ? `<div class="last">Última vez (${esc(last.date)}): <b class="num">${esc(fmtLog(last.sets, time))}</b></div>` : ""}
         ${tip ? `<div class="tip">${tip}</div>` : ""}
       </div>
@@ -174,13 +186,13 @@ function renderWorkout(){
   const wid = WEEK[selDay].w, W = WORKOUTS[wid];
   document.documentElement.style.setProperty("--accent", `var(${W.color})`);
   const total = W.ex.reduce((a,x)=>a+nSets(x),0);
-  const restToday = !WEEK[todayIdx].w && selDay !== todayIdx;
+  const restToday = !WEEK[todayIdx()].w && selDay !== todayIdx();
 
   let h = `<div class="whead"><div><h2><span class="disc"></span>${W.name}</h2><div class="wmeta">${WEEK[selDay].d} · ${W.focus}</div></div>
     <div class="whead-r"><div class="progress num" id="prog">${doneCount(wid)}/${total} séries</div><div class="clock num" id="clock" hidden></div></div></div>`;
   h += cycleBanner();
   if (restToday) h += `<div class="notice">Hoje é <b>descanso</b>. Abaixo está o próximo treino.</div>`;
-  h += `<div class="notice"><b>Aquecimento (6–8 min):</b> 4–5 min de bicicleta ou esteira leve · 1–2 min de mobilidade de ${W.mob} · aproximação no 1º exercício: barra vazia ×10, 50% ×8, 70% ×5, 85% ×3 (não contam no volume).</div>`;
+  h += `<details class="notice warm"><summary><b>Aquecimento (6–8 min)</b></summary>4–5 min de bicicleta ou esteira leve · 1–2 min de mobilidade de ${W.mob} · aproximação no 1º exercício: barra vazia ×10, 50% ×8, 70% ×5, 85% ×3 (não contam no volume).</details>`;
   h += `<div class="list">${W.ex.map((x, i) => exCard(wid, x, i)).join("")}</div>
     <div class="walk"><div class="ico num">15–20<small>MIN</small></div><p><b>Caminhada final — ${W.walk}.</b> 5,0 a 6,0 km/h, ritmo conversacional, FC ~110–130 bpm.${W.walk.startsWith("SEM")?" Em plano, funciona como recuperação ativa para as pernas.":""}</p></div>
     ${W.note?`<div class="notice">${esc(W.note)}</div>`:""}
@@ -223,10 +235,11 @@ $("#workout").addEventListener("click", e => {
       const name = en.alt ? x.alt.n : x.n;
       // Última série do exercício: sem descanso, segue direto para o próximo.
       if (en.sets.every(t => t.done)) { stopTimer(); toast(W.ex[i+1] ? `Próximo: ${W.ex[i+1].n}` : `${name} concluído`); }
-      else startTimer(x.rest, `${name} · série ${j+1}/${nSets(x)}`, `Descanso ${x.restTxt}`);
-    }
+      else startTimer(x.rest, name, `Série ${j+1}/${nSets(x)} · descanso ${x.restTxt}`, wid + ":" + x.id);
+    } else if (tKey === wid + ":" + x.id) stopTimer(); // desmarcou: o descanso daquela série não vale mais
     return;
   }
+  if (e.target.closest("[data-cycle-start]")){ startCycle(); save(); renderWorkout(); return; }
   const cyc = e.target.closest("[data-cycle]");
   if (cyc){ setCycleWeek(+cyc.dataset.cycle); renderWorkout(); return; }
   const tab = e.target.closest(".ex-tab");
@@ -256,6 +269,9 @@ function renderActions(){
   $("#actions").innerHTML = `<button class="btn primary" id="finish">Concluir treino</button><button class="btn ghost" id="reset">Limpar séries</button>`;
 }
 function askFinish(){
+  const wid = WEEK[selDay].w;
+  if (!WORKOUTS[wid].ex.some(x => (S.cur[wid] || {})[x.id] && setsOf(wid, x).some(s => s.done || s.kg || s.reps)))
+    return toast("Nada para salvar: registre ao menos uma série");
   $("#actions").innerHTML = `<div class="confirm">Salvar cargas no histórico e zerar as séries?
     <button class="btn primary" id="confirm-yes">Salvar</button><button class="btn ghost" id="confirm-no">Voltar</button></div>`;
 }
@@ -278,20 +294,22 @@ function finish(){
     if (pr.length) entry.pr = pr;
     entries.push(entry);
   });
+  if (!entries.length) { renderActions(); return toast("Nada para salvar: registre ao menos uma série"); }
   const dur = elapsedMin(wid);
   const session = { id:newId(), date, wid, entries, finishedAt:Date.now(), ...(dur !== null ? { dur } : {}) };
   S.history.unshift(session); S.pending.push(session.id);
   clearDay(wid);
-  if (!S.cycle) S.cycle = { start: isoDay(mondayOf()), t: Date.now() }; // primeiro treino inicia o ciclo
+  if (!S.cycle) startCycle(); // primeiro treino inicia o ciclo
   save(); stopTimer(); renderWorkout(); renderHistory(); keepAwake(anyActive());
   const prs = entries.filter(e => e.pr);
   toast(prs.length ? `🏆 ${prs.length > 1 ? prs.length + " recordes" : "Recorde"}: ${prs.map(e => e.n + " (" + bestLabel(e.log) + ")").join(" · ")}` : "Treino salvo no histórico", prs.length ? 4500 : 2200);
   Sync.flushSessions();
 }
 /* ---------- rest timer ---------- */
-let tEnd = 0, tDur = 0, tInt = null, beeped = false, actx = null, tLabel = "";
-function startTimer(sec, label, sub){
-  tLabel = label;
+let tEnd = 0, tDur = 0, tInt = null, beeped = false, actx = null, tLabel = "", tKey = "";
+// key: treino + exercício que iniciou o descanso, para desmarcar a série parar o timer.
+function startTimer(sec, label, sub, key = ""){
+  tLabel = `${label} · ${sub}`; tKey = key;
   tDur = sec; tEnd = Date.now() + sec*1000; beeped = false;
   $("#t-label").innerHTML = `<b>${esc(label)}</b>${esc(sub)}`;
   $("#timer").hidden = false; $("#timer").classList.remove("over");
@@ -318,6 +336,6 @@ function beep(){
     });
   } catch(e) {}
 }
-function stopTimer(){ clearInterval(tInt); $("#timer").hidden = true; cancelNotify(); }
+function stopTimer(){ clearInterval(tInt); tKey = ""; $("#timer").hidden = true; cancelNotify(); }
 $("#t-plus").onclick = () => { tEnd += 15000; tDur += 15; beeped = false; $("#timer").classList.remove("over"); tick(); scheduleNotify(tLabel); };
 $("#t-stop").onclick = stopTimer;

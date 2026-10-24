@@ -12,7 +12,8 @@ function mondayOf(d = new Date()){
 }
 function cycleWeek(){
   if (!S.cycle || !S.cycle.start) return 0;
-  const weeks = Math.round((mondayOf() - parseIso(S.cycle.start)) / 6048e5); // round: horário de verão
+  // round: horário de verão; início no futuro (ciclo marcado no fim de semana) já conta como semana 1
+  const weeks = Math.max(0, Math.round((mondayOf() - parseIso(S.cycle.start)) / 6048e5));
   return ((weeks % CYCLE_WEEKS) + CYCLE_WEEKS) % CYCLE_WEEKS + 1;
 }
 function phase(w){
@@ -29,10 +30,16 @@ function setCycleWeek(w){
   S.cycle = { start: isoDay(start), t: Date.now() };
   save();
 }
+// Começar o ciclo: no sábado ou domingo a semana já passou, então a semana 1 é a próxima.
+const isWeekend = () => [0, 6].includes(new Date().getDay());
+function startCycle(){
+  const start = mondayOf(); if (isWeekend()) start.setDate(start.getDate() + 7);
+  S.cycle = { start: isoDay(start), t: Date.now() };
+}
 function cycleBanner(){
   const w = cycleWeek();
   if (!w) return `<div class="cycle"><div><b>Ciclo de 8 semanas</b><span>Marque o início para o app indicar a intensidade de cada semana e avisar do deload.</span></div>
-    <button class="btn ghost sm" data-cycle="1">Começar nesta semana</button></div>`;
+    <button class="btn ghost sm" data-cycle-start>${isWeekend() ? "Começar na segunda" : "Começar nesta semana"}</button></div>`;
   const p = phase(w);
   return `<div class="cycle ${p.deload ? "deload" : ""}"><div><b>Semana ${w} de ${CYCLE_WEEKS} · ${p.deload ? "Deload" : p.rir}</b>${p.note ? `<span>${p.note}</span>` : ""}</div>
     <div class="cycle-adj" role="group" aria-label="Ajustar semana do ciclo">
