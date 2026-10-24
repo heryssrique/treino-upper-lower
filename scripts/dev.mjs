@@ -17,7 +17,7 @@ if (!process.env.MONGODB_URI) {
   console.log("MongoDB em memória (os dados somem ao fechar).");
 }
 
-const TYPES = { ".html":"text/html; charset=utf-8", ".js":"text/javascript", ".webmanifest":"application/manifest+json", ".png":"image/png", ".json":"application/json" };
+const TYPES = { ".html":"text/html; charset=utf-8", ".js":"text/javascript", ".css":"text/css; charset=utf-8", ".webmanifest":"application/manifest+json", ".png":"image/png", ".json":"application/json" };
 const ROUTES = ["state", "sessions", "health"];
 const handlers = {};
 for (const r of ROUTES) handlers[r] = (await import(pathToFileURL(path.join(root, "api", r + ".js")))).default;

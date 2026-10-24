@@ -1,5 +1,5 @@
 // POST   /api/sessions        → grava um treino concluído (reenviar o mesmo id não duplica)
-// DELETE /api/sessions?id=... → apaga um treino do histórico
+// DELETE /api/sessions?id=... → apaga um treino do histórico (fica a marca deleted)
 import { getDb } from "./_lib/db.js";
 import { route, send, readJson } from "./_lib/http.js";
 
@@ -11,8 +11,10 @@ export default route(["POST", "DELETE"], async (req, res) => {
   if (req.method === "DELETE") {
     const id = new URL(req.url, "http://x").searchParams.get("id");
     if (!id) return send(res, 400, { error: "Informe o id" });
-    const r = await sessions.deleteOne({ _id: id });
-    return send(res, 200, { deleted: r.deletedCount });
+    // Marca como apagado em vez de remover: outros aparelhos só apagam a cópia
+    // local de um treino que o servidor diz ter sido apagado (e não de um que só falta).
+    const r = await sessions.updateOne({ _id: id, deleted: { $ne: true } }, { $set: { deleted: true, deletedAt: Date.now() } });
+    return send(res, 200, { deleted: r.modifiedCount });
   }
 
   const s = await readJson(req);
@@ -27,8 +29,10 @@ export default route(["POST", "DELETE"], async (req, res) => {
     wid: s.wid,
     date: String(s.date || "").slice(0, 20),
     finishedAt: Number(s.finishedAt),
+    ...(Number.isFinite(Number(s.dur)) && s.dur !== undefined ? { dur: Math.max(0, Math.min(600, Math.round(Number(s.dur)))) } : {}),
     entries: s.entries.map(e => ({
       ...(e.ex ? { ex: String(e.ex).slice(0, 64), alt: !!e.alt } : {}),
+      ...(Array.isArray(e.pr) ? { pr: e.pr.filter(p => p === "carga" || p === "1rm") } : {}),
       // Carga e reps de cada série (versões novas do app).
       ...(Array.isArray(e.log) ? { log: e.log.slice(0, 10).map(x => ({ kg: String(x?.kg ?? "").slice(0, 10), reps: String(x?.reps ?? "").slice(0, 10) })) } : {}),
       n: String(e.n || "").slice(0, 80),

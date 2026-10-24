@@ -11,11 +11,15 @@ export default route(["GET", "PUT"], async (req, res) => {
   const states = db.collection("state");
 
   if (req.method === "GET") {
-    const [state, sessions] = await Promise.all([
+    // ?sessions=0: só o estado (o app pede assim antes de cada envio, para juntar).
+    const withSessions = new URL(req.url, "http://x").searchParams.get("sessions") !== "0";
+    const col = db.collection("sessions");
+    const [state, sessions, deleted] = await Promise.all([
       states.findOne({ _id: ID }, { projection: { _id: 0 } }),
-      db.collection("sessions").find({}, { projection: { _id: 0 } }).sort({ finishedAt: -1 }).limit(500).toArray()
+      withSessions ? col.find({ deleted: { $ne: true } }, { projection: { _id: 0 } }).sort({ finishedAt: -1 }).limit(500).toArray() : null,
+      withSessions ? col.find({ deleted: true }, { projection: { _id: 1 } }).toArray() : null
     ]);
-    return send(res, 200, { state, sessions });
+    return send(res, 200, withSessions ? { state, sessions, deleted: deleted.map(d => d._id) } : { state });
   }
 
   const body = await readJson(req);
@@ -27,9 +31,13 @@ export default route(["GET", "PUT"], async (req, res) => {
     && (v3 ? isObj(body.cur) : isObj(body.checks) && isObj(body.draft));
   if (!valid) return send(res, 400, { error: "Estado inválido" });
   const doc = v3
-    ? { v: Number(body.v), cur: body.cur, last: body.last, updatedAt }
+    ? { v: Number(body.v), cur: body.cur, last: body.last, updatedAt,
+        // Pesagens, ciclo e horas em que cada dia foi zerado (junção entre aparelhos).
+        body: Array.isArray(body.body) ? body.body.slice(-3000) : [],
+        cycle: isObj(body.cycle) ? body.cycle : null,
+        resets: isObj(body.resets) ? body.resets : {} }
     : { checks: body.checks, draft: body.draft, last: body.last, updatedAt, ...(Number.isInteger(body.plan) && body.plan > 0 ? { plan: body.plan } : {}) };
-  const unset = v3 ? { checks: "", draft: "", plan: "" } : { v: "", cur: "" };
+  const unset = v3 ? { checks: "", draft: "", plan: "" } : { v: "", cur: "", body: "", cycle: "", resets: "" };
   const r = await states.updateOne(
     { _id: ID, $or: [{ updatedAt: { $lte: updatedAt } }, { updatedAt: { $exists: false } }] },
     { $set: doc, $unset: unset },

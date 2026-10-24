@@ -1,9 +1,20 @@
 // Service worker: deixa o app abrir sem internet (academia sem sinal).
-const CACHE = "treino-v10";
+const CACHE = "treino-v12";
 const SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
+  "./css/app.css",
+  "./js/util.js",
+  "./js/plan.js",
+  "./js/store.js",
+  "./js/cycle.js",
+  "./js/workout.js",
+  "./js/chart.js",
+  "./js/guide.js",
+  "./js/history.js",
+  "./js/sync.js",
+  "./js/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/maskable-512.png"
@@ -39,17 +50,24 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // Arquivos do app e fontes do Google: cache primeiro, atualiza em segundo plano.
   const sameOrigin = url.origin === self.location.origin;
   if (sameOrigin && url.pathname.includes("/api/")) return; // dados do banco nunca vêm do cache
+  const save = res => { if (res.ok || res.type === "opaque") { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; };
+
+  // Código do app (JS e CSS): rede primeiro, como a página, para HTML e scripts
+  // nunca ficarem de versões diferentes; cache só sem internet.
+  if (sameOrigin && /\.(js|css)$/.test(url.pathname)) {
+    // no-cache: revalida no servidor (o GitHub Pages manda guardar por 10 min).
+    e.respondWith(fetch(req.url, { cache: "no-cache" }).then(save).catch(() => caches.match(req)));
+    return;
+  }
+
+  // Ícones e fontes do Google: cache primeiro, atualiza em segundo plano.
   const isFont = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
   if (!sameOrigin && !isFont) return;
   e.respondWith(
     caches.match(req).then(hit => {
-      const net = fetch(req).then(res => {
-        if (res.ok || res.type === "opaque") { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
-        return res;
-      }).catch(() => hit);
+      const net = fetch(req).then(save).catch(() => hit);
       return hit || net;
     })
   );

@@ -9,6 +9,11 @@ App web do plano de hipertrofia Upper/Lower de 4 dias (60 min de musculação + 
 - Sugestão de progressão (dupla progressão do Guia): quando subir a carga, manter ou reduzir
 - Alternativa para cada exercício dos dias Upper, com cargas registradas à parte
 - Tela sempre ligada enquanto houver série marcada
+- Recordes (maior carga e maior 1RM estimado) avisados ao concluir o treino
+- Ciclo de 8 semanas: intensidade de cada semana e deload na 8ª (metade das séries)
+- Duração da sessão, com aviso ao passar de 60 min de musculação
+- Histórico: volume semanal por músculo, gráfico de evolução por exercício, peso corporal com tendência, editar e apagar treinos
+- Backup: exportar CSV e JSON, importar JSON
 - Técnica de cada exercício (montagem, execução, erro comum) e link direto para o vídeo no [MuscleWiki](https://musclewiki.com/pt-br/)
 - Instalável no Android (PWA) e funciona offline
 - Sincronização opcional com MongoDB
@@ -16,16 +21,30 @@ App web do plano de hipertrofia Upper/Lower de 4 dias (60 min de musculação + 
 ## Estrutura
 
 ```
-index.html            app (HTML, CSS e JS num arquivo só)
+index.html            marcação do app
+css/app.css           estilos
+js/                   scripts clássicos, carregados em ordem e sem build
+  util.js             utilitários ($, esc, toast…)
+  plan.js             plano: exercícios, técnica, alternativas, grupo muscular
+  store.js            dados no aparelho, migração de versões antigas, junção entre aparelhos
+  cycle.js            ciclo de 8 semanas, deload e duração da sessão
+  workout.js          tela do treino: séries, progressão, recordes, descanso
+  chart.js            gráfico de linha em SVG
+  history.js          histórico, evolução, volume, peso corporal, backup
+  guide.js            aba Guia
+  sync.js             sincronização com a API
+  app.js              abas, notificações, PWA e início
 sw.js                 service worker: offline e aviso de fim do descanso
 manifest.webmanifest  dados para instalar como app
 api/                  funções serverless da Vercel
   state.js            GET/PUT  /api/state     estado atual + histórico
   sessions.js         POST/DELETE /api/sessions  treinos concluídos
   health.js           GET /api/health         API e banco no ar?
-  _lib/               conexão com o MongoDB e autenticação
+  _lib/               conexão com o MongoDB, autenticação e CORS
 scripts/dev.mjs       servidor local (app + API)
 scripts/test-api.mjs  testes da API
+tests/e2e.mjs         testes de ponta a ponta (Chromium)
+.github/workflows/    testes automáticos a cada push
 ```
 
 ## Banco de dados (MongoDB)
@@ -36,7 +55,7 @@ Coleções no banco `treino`:
 
 | Coleção    | Conteúdo |
 |------------|----------|
-| `state`    | um documento (`_id: "me"`): `cur` (treino em andamento: carga, reps e marcação de cada série) e `last` (última vez de cada exercício), indexados pelo id do exercício (ex.: `supino-reto-com-barra`; com a alternativa, `supino-reto-com-barra~alt`) |
+| `state`    | um documento (`_id: "me"`): `cur` (treino em andamento: carga, reps e marcação de cada série) e `last` (última vez de cada exercício), indexados pelo id do exercício (ex.: `supino-reto-com-barra`; com a alternativa, `supino-reto-com-barra~alt`); `body` (pesagens), `cycle` (início do ciclo) e `resets` (quando cada dia foi zerado). Cada item tem `t`, a hora da última alteração: ao sincronizar, o app junta o seu estado com o do servidor item a item, ficando com o mais recente |
 | `sessions` | um documento por treino concluído: `id`, `wid` (UA/LA/UB/LB), `date`, `finishedAt`, `entries[]` com `ex`, `alt` e `log` (carga e reps de cada série) |
 
 Dados de versões antigas do app (uma carga por exercício, indexada pela posição na lista) são convertidos automaticamente, no aparelho e ao baixar do banco.
@@ -62,6 +81,8 @@ O app continua no GitHub Pages; a Vercel só executa a API. A API aceita chamada
 npm install
 npm run dev        # http://localhost:3000 — sem .env, usa um MongoDB temporário em memória
 npm run test:api   # testa as rotas da API
+npm run test:e2e   # testa o app no Chromium (instale antes: npx playwright install chromium)
+npm test           # os dois
 ```
 
 Para usar o Atlas localmente, copie `.env.example` para `.env` e preencha.

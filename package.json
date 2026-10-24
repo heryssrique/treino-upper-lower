@@ -7,12 +7,15 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "test:api": "node scripts/test-api.mjs"
+    "test:api": "node scripts/test-api.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "test": "npm run test:api && npm run test:e2e"
   },
   "dependencies": {
     "mongodb": "^6.21.0"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^10.4.3"
+    "mongodb-memory-server": "^10.4.3",
+    "playwright": "^1.56.1"
   }
 }
