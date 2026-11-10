@@ -30,6 +30,7 @@ export default route(["POST", "DELETE"], async (req, res) => {
     date: String(s.date || "").slice(0, 20),
     finishedAt: Number(s.finishedAt),
     ...(Number.isFinite(Number(s.dur)) && s.dur !== undefined ? { dur: Math.max(0, Math.min(600, Math.round(Number(s.dur)))) } : {}),
+    ...(Number.isFinite(Number(s.durTotal)) && s.durTotal !== undefined ? { durTotal: Math.max(0, Math.min(1440, Math.round(Number(s.durTotal)))) } : {}),
     entries: s.entries.map(e => ({
       ...(e.ex ? { ex: String(e.ex).slice(0, 64), alt: !!e.alt } : {}),
       ...(Array.isArray(e.pr) ? { pr: e.pr.filter(p => p === "carga" || p === "1rm") } : {}),

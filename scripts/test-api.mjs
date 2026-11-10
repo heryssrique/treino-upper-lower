@@ -58,12 +58,12 @@ r = await call(sessions, { method: "POST", body: s1 }); assert.equal(r.status, 2
 r = await call(sessions, { method: "POST", body: s1 }); assert.equal(r.status, 200, "reenvio não duplica");
 r = await call(sessions, { method: "POST", body: { ...s1, id: "b2", finishedAt: 20, wid: "LB" } });
 r = await call(sessions, { method: "POST", body: { ...s1, id: "x", wid: "ZZ" } }); assert.equal(r.status, 400);
-const s3 = { ...s1, id: "c3", finishedAt: 30, dur: 57, entries: [{ ex: "supino-reto-com-barra", alt: false, pr: ["carga", "hack"], n: "Supino reto com barra", log: [{ kg: "60", reps: "8" }, { kg: "60", reps: "7" }], kg: "60", reps: "8, 7", sets: 2, of: 4 }] };
+const s3 = { ...s1, id: "c3", finishedAt: 30, dur: 57, durTotal: 81, entries: [{ ex: "supino-reto-com-barra", alt: false, pr: ["carga", "hack"], n: "Supino reto com barra", log: [{ kg: "60", reps: "8" }, { kg: "60", reps: "7" }], kg: "60", reps: "8, 7", sets: 2, of: 4 }] };
 r = await call(sessions, { method: "POST", body: s3 }); assert.equal(r.status, 200);
 r = await call(state); assert.deepEqual(r.body.sessions.map(s => s.id), ["c3", "b2", "a1"], "mais recente primeiro");
 assert.deepEqual(r.body.sessions[0].entries[0].log, [{ kg: "60", reps: "8" }, { kg: "60", reps: "7" }], "séries guardadas");
 assert.equal(r.body.sessions[0].entries[0].ex, "supino-reto-com-barra");
-assert.equal(r.body.sessions[0].dur, 57); assert.deepEqual(r.body.sessions[0].entries[0].pr, ["carga"], "recordes filtrados");
+assert.equal(r.body.sessions[0].dur, 57); assert.equal(r.body.sessions[0].durTotal, 81); assert.deepEqual(r.body.sessions[0].entries[0].pr, ["carga"], "recordes filtrados");
 r = await call(sessions, { method: "DELETE", url: "/api/sessions?id=a1" }); assert.equal(r.body.deleted, 1);
 r = await call(state); assert.equal(r.body.sessions.length, 2); assert.deepEqual(r.body.deleted, ["a1"], "apagado vira marca");
 r = await call(sessions, { method: "DELETE", url: "/api/sessions?id=a1" }); assert.equal(r.body.deleted, 0, "apagar de novo não faz nada");

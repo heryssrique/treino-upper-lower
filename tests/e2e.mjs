@@ -270,6 +270,32 @@ try {
   await E.waitForFunction(() => document.querySelector("#sync-status").textContent === "Sincronizado");
   ok("erro de sincronização com motivo, horário e nova tentativa");
 
+  // Tempo útil: espera por aparelho não conta para o limite de 60 min
+  const T = await open("UA");
+  await T.evaluate(() => {
+    const now = Date.now(), m = n => now - n * 60000, set = (at, kg = "60") => ({ kg, reps: "8", done: true, at });
+    // Supino (descanso 3 min): 3 min, depois 8 min entre séries (conta 3 + 1,5);
+    // 10 min esperando a barra fixa (conta 3); barra fixa em andamento há 5 min (conta 2,5 + 1,5).
+    S.cur.UA = { "supino-reto-com-barra": { sets: [set(m(25)), set(m(22)), set(m(14)), set(m(14) + 1)].slice(0, 3).concat([{ kg: "", reps: "", done: false }]), t: now },
+      "barra-fixa-ou-puxada-frente": { sets: [set(m(5), "")], t: now } };
+    S.started.UA = m(26); saveLocal(); renderWorkout();
+  });
+  // 1 + 3 + 4,5 + 3 + 4 = 15,5 min de treino; 26 no total
+  assert.equal(await T.textContent("#clock"), "15 min de treino · 26 no total");
+  await T.evaluate(() => { S.started.UA = Date.now() - 95 * 60000; Object.values(S.cur.UA).forEach(e => e.sets.forEach(s => { if (s.at) s.at -= 70 * 60000; })); updateClock(); });
+  assert.doesNotMatch(await T.textContent("#clock"), /passou de 60/, "95 min no relógio, mas pouco tempo útil: sem aviso");
+  const big = await T.evaluate(() => {
+    // Upper A inteiro sem nenhuma espera: cada intervalo no máximo que conta
+    // (descanso + 1,5 min entre séries; 3 min na troca) = 72,5 min de treino útil.
+    const marks = []; WORKOUTS.UA.ex.forEach(x => { for (let j = 0; j < x.s; j++) marks.push({ x, j }); });
+    let at = Date.now(); const times = [];
+    for (let k = marks.length - 1; k >= 0; k--) { times[k] = at; if (k) at -= marks[k - 1].x === marks[k].x ? marks[k].x.rest * 1000 + 90000 : 180000; }
+    S.cur.UA = {};
+    marks.forEach((m, k) => { (S.cur.UA[m.x.id] ||= { sets: [], t: Date.now() }).sets[m.j] = { kg: "10", reps: "10", done: true, at: times[k] }; });
+    S.started.UA = times[0]; updateClock(); return document.querySelector("#clock").textContent; });
+  assert.match(big, /^72 min de treino · passou de 60: corte o último exercício/);
+  ok("tempo útil sem espera por aparelho; aviso de 60 min só pelo tempo útil");
+
   assert.deepEqual(errors, [], "sem erros de JavaScript na página");
   ok("nenhum erro de JavaScript");
   console.log("E2E ok: todos os testes passaram");

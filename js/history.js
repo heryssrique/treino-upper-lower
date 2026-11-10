@@ -113,7 +113,7 @@ function renderSessions(){
         <div class="h-actions">${h.id === confirmDel
           ? `<span class="fine">Apagar este treino?</span><button class="btn danger sm" data-act="del-yes" data-id="${esc(h.id)}">Apagar</button><button class="btn ghost sm" data-act="cancel">Voltar</button>`
           : `<button class="btn ghost sm" data-act="edit" data-id="${esc(h.id)}">Editar</button><button class="btn ghost sm" data-act="del" data-id="${esc(h.id)}">Apagar</button>`}</div>`;
-    return `<details ${open ? "open" : ""}><summary>${esc((WORKOUTS[h.wid] || {}).name || h.wid)} <span>· ${esc(h.date)}${h.dur ? ` · ${esc(h.dur)} min` : ""}${prs ? ` · 🏆 ${prs}` : ""}</span></summary>${body}</details>`;
+    return `<details ${open ? "open" : ""}><summary>${esc((WORKOUTS[h.wid] || {}).name || h.wid)} <span>· ${esc(h.date)}${h.dur ? ` · ${esc(h.dur)} min${h.durTotal && h.durTotal - h.dur >= 2 ? ` (${esc(h.durTotal)} no total)` : ""}` : ""}${prs ? ` · 🏆 ${prs}` : ""}</span></summary>${body}</details>`;
   }).join("");
 }
 // Depois de editar ou apagar: "última vez" de cada exercício volta a ser o treino mais recente que sobrou.
@@ -173,11 +173,11 @@ function download(name, text, type){
 const stamp = () => isoDay(new Date());
 $("#exp-csv").addEventListener("click", () => {
   const q = v => { v = String(v ?? ""); return /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = [["data", "treino", "exercicio", "alternativa", "serie", "carga_kg", "reps", "duracao_min"]];
+  const rows = [["data", "treino", "exercicio", "alternativa", "serie", "carga_kg", "reps", "duracao_min", "duracao_total_min"]];
   sessionsOld().forEach(h => h.entries.forEach(e => {
     const base = [h.date, (WORKOUTS[h.wid] || {}).name || h.wid, e.n, e.alt ? "sim" : "não"];
-    if (e.log) e.log.forEach((s, i) => rows.push([...base, i + 1, s.kg, s.reps, h.dur || ""]));
-    else rows.push([...base, "", e.kg, e.reps, h.dur || ""]);
+    if (e.log) e.log.forEach((s, i) => rows.push([...base, i + 1, s.kg, s.reps, h.dur || "", h.durTotal || ""]));
+    else rows.push([...base, "", e.kg, e.reps, h.dur || "", h.durTotal || ""]);
   }));
   // ; e BOM: abre direto no Excel em português.
   download(`treinos-${stamp()}.csv`, "﻿" + rows.map(r => r.map(q).join(";")).join("\r\n"), "text/csv;charset=utf-8");

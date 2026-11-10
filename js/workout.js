@@ -309,7 +309,9 @@ $("#workout").addEventListener("click", e => {
       card.querySelector(`input[data-f="kg"][data-j="${j}"]`).value = s.kg;
       card.querySelector(`input[data-f="reps"][data-j="${j}"]`).value = s.reps;
     }
-    if (s.done && !S.started[wid]) { S.started[wid] = Date.now(); updateClock(); }
+    if (s.done) s.at = Date.now(); else delete s.at; // hora da série, para o tempo útil
+    if (s.done && !S.started[wid]) S.started[wid] = Date.now();
+    updateClock();
     save();
     set.setAttribute("aria-pressed", s.done);
     set.setAttribute("aria-label", `Série ${j+1}${s.done ? " feita" : ""}`);
@@ -407,8 +409,8 @@ function finish(){
     entries.push(entry);
   });
   if (!entries.length) { renderActions(); return toast("Nada para salvar: registre ao menos uma série"); }
-  const dur = elapsedMin(wid);
-  const session = { id:newId(), date, wid, entries, finishedAt:Date.now(), ...(dur !== null ? { dur } : {}) };
+  const dur = activeMin(wid), durTotal = elapsedMin(wid);
+  const session = { id:newId(), date, wid, entries, finishedAt:Date.now(), ...(dur !== null ? { dur } : {}), ...(durTotal !== null ? { durTotal } : {}) };
   S.history.unshift(session); S.pending.push(session.id);
   clearDay(wid);
   if (!S.cycle) startCycle(); // primeiro treino inicia o ciclo

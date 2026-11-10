@@ -8,6 +8,7 @@ $("#view-guia").innerHTML = `
   <tr><td><b>Total</b></td><td class="num"><b>75–80 min</b></td></tr></tbody></table></div>
   <p style="margin-top:10px"><b>Se o tempo apertar:</b> corte primeiro o último exercício da lista, depois o penúltimo, depois reduza a esteira para 15 min. Nunca os exercícios 1 e 2.</p>
   <p>Use o cronômetro — descansos de 4 a 5 min transformam a sessão em 75 min só de musculação e o plano deixa de caber.</p>
+  <p>O relógio do treino mostra dois tempos: o <b>tempo de treino</b> (séries e descansos) e o total. A espera por aparelho com a academia cheia não entra no tempo de treino: entre séries conta até o descanso prescrito + 1,5 min, e na troca de exercício até 3 min. O aviso de 60 min usa o tempo de treino.</p>
 </section>
 <section><h2>Progressão de carga</h2>
   <p><b>Semanas 1 e 2 — calibração.</b> Pare 3 a 4 repetições antes da falha em todas as séries. Anote todas as cargas desde o primeiro dia.</p>
