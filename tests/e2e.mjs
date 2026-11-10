@@ -88,6 +88,32 @@ try {
   assert.match(await p.textContent(`${card(2)} .how-body`), /Montagem/);
   ok("abas Principal/Alternativa no card, cargas separadas, ciclo iniciado, sugestão de subir carga");
 
+  // Anilhas e aquecimento a partir da carga indicada (62,5 kg) e da carga digitada
+  const load = () => p.textContent(`${card(0)} [data-load]`);
+  assert.match(await load(), /62,5 kg = barra 20 \+ por lado 20 \+ 1,25/);
+  assert.match(await load(), /Aproximação \(não conta no volume\): 20 kg × 10 · 32,5 kg × 8 · 45 kg × 5 · 52,5 kg × 3/);
+  assert.equal(await p.locator(`${card(1)} .warmup`).count(), 0, "aquecimento só no 1º exercício");
+  await p.fill(field(0, 0, "kg"), "61");
+  assert.match(await load(), /61 kg = barra 20 \+ por lado 20 \(não fecha .* dá 60 kg\)/);
+  await p.fill(field(0, 0, "kg"), "");
+  // Ajustes: sem a anilha de 20, a mesma carga vira 15 + 5 + 1,25
+  await p.click("#tab-hist");
+  await p.uncheck('#pref-plates input[value="20"]');
+  await p.click("#tab-treino");
+  assert.match(await load(), /por lado 15 \+ 5 \+ 1,25/);
+  await p.click("#tab-hist"); await p.check('#pref-plates input[value="20"]'); await p.click("#tab-treino");
+  ok("calculadora de anilhas, aquecimento calculado e ajustes da academia");
+
+  // Anotação fixa no exercício
+  await p.click(`${card(0)} .note-add`);
+  await p.fill(`${card(0)} .note-in`, "banco no furo 4");
+  await p.press(`${card(0)} .note-in`, "Enter");
+  assert.match(await p.textContent(`${card(0)} .note`), /📌 banco no furo 4/);
+  assert.equal((await S(p)).notes["supino-reto-com-barra"].text, "banco no furo 4");
+  await p.reload();
+  assert.match(await p.textContent(`${card(0)} .note`), /banco no furo 4/);
+  ok("anotação por exercício salva e mantida");
+
   // 4. Recorde
   await doSets(p, 0, [["62,5", "8"], ["62,5", "7"], ["62,5", "7"], ["62,5", "6"]]);
   await finish(p);
@@ -178,7 +204,11 @@ try {
   await B.evaluate(() => Sync.run()); await B.waitForTimeout(500);
   assert.ok((await S(B)).history.some(h => h.id === "orfao-1"), "treino que falta no servidor não é apagado");
   assert.ok((await api("state")).sessions.some(h => h.id === "orfao-1"), "e é reenviado ao servidor");
-  ok("sincronização: junção, zerar e apagar entre aparelhos");
+  // Anotação feita no A aparece no B
+  await A.click("#tab-treino"); await A.click(`${card(0)} .note-add`); await A.fill(`${card(0)} .note-in`, "travas no 5"); await A.press(`${card(0)} .note-in`, "Enter");
+  await A.waitForTimeout(2200); await B.evaluate(() => Sync.run()); await B.waitForTimeout(300);
+  assert.equal((await S(B)).notes["supino-inclinado-com-barra"].text, "travas no 5");
+  ok("sincronização: junção, zerar, apagar e anotações entre aparelhos");
 
   assert.deepEqual(errors, [], "sem erros de JavaScript na página");
   ok("nenhum erro de JavaScript");

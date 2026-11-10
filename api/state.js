@@ -35,9 +35,12 @@ export default route(["GET", "PUT"], async (req, res) => {
         // Pesagens, ciclo e horas em que cada dia foi zerado (junção entre aparelhos).
         body: Array.isArray(body.body) ? body.body.slice(-3000) : [],
         cycle: isObj(body.cycle) ? body.cycle : null,
-        resets: isObj(body.resets) ? body.resets : {} }
+        resets: isObj(body.resets) ? body.resets : {},
+        // Anotações por exercício e ajustes da academia.
+        notes: isObj(body.notes) ? body.notes : {},
+        prefs: isObj(body.prefs) ? body.prefs : null }
     : { checks: body.checks, draft: body.draft, last: body.last, updatedAt, ...(Number.isInteger(body.plan) && body.plan > 0 ? { plan: body.plan } : {}) };
-  const unset = v3 ? { checks: "", draft: "", plan: "" } : { v: "", cur: "", body: "", cycle: "", resets: "" };
+  const unset = v3 ? { checks: "", draft: "", plan: "" } : { v: "", cur: "", body: "", cycle: "", resets: "", notes: "", prefs: "" };
   const r = await states.updateOne(
     { _id: ID, $or: [{ updatedAt: { $lte: updatedAt } }, { updatedAt: { $exists: false } }] },
     { $set: doc, $unset: unset },

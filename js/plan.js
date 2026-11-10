@@ -208,3 +208,11 @@ const MUSCLE = {
   "panturrilha-em-pe":"Panturrilha", "panturrilha-sentado":"Panturrilha",
   "prancha-isometrica":"Abdômen", "elevacao-de-pernas-abdominal-infra":"Abdômen"
 };
+
+// Exercícios montados com barra e anilhas (calculadora de anilhas e aquecimento):
+// "olimpica" usa o peso da barra olímpica dos Ajustes; "w", o da barra W.
+const BARBELL = {
+  "supino-reto-com-barra":"olimpica", "supino-inclinado-com-barra":"olimpica", "remada-curvada-com-barra":"olimpica",
+  "agachamento-livre":"olimpica", "levantamento-terra-romeno":"olimpica", "elevacao-pelvica":"olimpica",
+  "rosca-direta-barra-w":"w"
+};

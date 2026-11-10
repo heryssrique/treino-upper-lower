@@ -46,10 +46,11 @@ r = await call(state, { method: "PUT", body: v3 }); assert.equal(r.status, 200);
 r = await call(state); assert.equal(r.body.state.v, 3); assert.equal(r.body.state.cur.UA["supino-reto-com-barra"].sets[0].kg, "60");
 assert.equal(r.body.state.checks, undefined); assert.equal(r.body.state.plan, undefined, "campos antigos removidos");
 r = await call(state, { method: "PUT", body: { v: 3, last: {}, updatedAt: 5000 } }); assert.equal(r.status, 400, "v3 exige cur");
-r = await call(state, { method: "PUT", body: { ...v3, body: [{ d: "2026-10-24", kg: 75.2, t: 1 }], cycle: { start: "2026-10-19", t: 1 }, resets: { UA: 9 }, updatedAt: 6000 } });
+r = await call(state, { method: "PUT", body: { ...v3, body: [{ d: "2026-10-24", kg: 75.2, t: 1 }], cycle: { start: "2026-10-19", t: 1 }, resets: { UA: 9 },
+  notes: { "supino-reto-com-barra": { text: "banco no furo 4", t: 1 } }, prefs: { bar: 20, barW: 10, plates: [20, 10, 5], t: 1 }, updatedAt: 6000 } });
 r = await call(state, { url: "/api/state?sessions=0" });
 assert.equal(r.body.sessions, undefined, "sessions=0 não traz treinos");
-assert.equal(r.body.state.body[0].kg, 75.2); assert.equal(r.body.state.cycle.start, "2026-10-19"); assert.equal(r.body.state.resets.UA, 9);
+assert.equal(r.body.state.body[0].kg, 75.2); assert.equal(r.body.state.notes["supino-reto-com-barra"].text, "banco no furo 4"); assert.deepEqual(r.body.state.prefs.plates, [20, 10, 5]); assert.equal(r.body.state.cycle.start, "2026-10-19"); assert.equal(r.body.state.resets.UA, 9);
 
 const s1 = { id: "a1", wid: "UA", date: "01/10/2026", finishedAt: 10, entries: [{ n: "Supino reto com barra", kg: "50", reps: "8,8,8,8", sets: 4, of: 4 }] };
 r = await call(sessions, { method: "POST", body: s1 }); assert.equal(r.status, 200);

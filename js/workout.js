@@ -72,33 +72,88 @@ function fmtLog(sets, time){
 }
 
 /* Dupla progressão (Guia): todas as séries no topo da faixa → sobe a carga;
-   senão, mesma carga buscando +1 rep. Três sessões sem evoluir → reduz 10%. */
-function suggest(x, i, alt){
+   senão, mesma carga buscando +1 rep. Três sessões sem evoluir → reduz 10%.
+   Devolve a mensagem e a carga indicada (kg), usada no aquecimento e nas anilhas. */
+function advice(x, i, alt){
   const rg = repRange(x), last = lastOf(x, alt);
-  if (!rg || !last) return "";
+  if (!rg || !last) return { msg: "", kg: NaN };
   const sets = last.sets.filter(s => !isNaN(num(s.reps)));
-  if (!sets.length) return "";
+  if (!sets.length) return { msg: "", kg: NaN };
   const [lo, hi] = rg;
   const kgs = sets.map(s => num(s.kg)).filter(n => !isNaN(n));
   const kg = kgs.length ? Math.max(...kgs) : NaN;
-  if (isDeload()) return isNaN(kg) ? "Deload: metade das séries, sem buscar falha." : `Deload: mantenha <b>${fmtKg(kg)} kg</b>, só ${nSets(x)} séries, longe da falha.`;
+  const out = (msg, k = kg) => ({ msg, kg: k });
+  if (isDeload()) return out(isNaN(kg) ? "Deload: metade das séries, sem buscar falha." : `Deload: mantenha <b>${fmtKg(kg)} kg</b>, só ${nSets(x)} séries, longe da falha.`);
   const work = sets.filter(s => isNaN(kg) || num(s.kg) === kg);
   const reps = work.map(s => num(s.reps));
   const hit = work.length >= x.s && reps.every(r => r >= hi);
-  if (isNaN(kg)) return hit ? `Meta atingida (${hi} reps em todas): acrescente carga.` : `Busque +1 rep por série (meta: ${hi} em todas).`;
+  if (isNaN(kg)) return out(hit ? `Meta atingida (${hi} reps em todas): acrescente carga.` : `Busque +1 rep por série (meta: ${hi} em todas).`);
   if (hit) {
     const st = step(x, i);
-    return st ? `Meta atingida: suba para <b>${fmtKg(kg + st)} kg</b>.` : `Meta atingida: suba <b>1–2 kg</b> (o próximo peso disponível).`;
+    return st ? out(`Meta atingida: suba para <b>${fmtKg(kg + st)} kg</b>.`, kg + st) : out(`Meta atingida: suba <b>1–2 kg</b> (o próximo peso disponível).`);
   }
-  if (reps.every(r => r < lo)) return `Abaixo da faixa ${lo}–${hi} com ${fmtKg(kg)} kg: reduza um pouco a carga.`;
+  if (reps.every(r => r < lo)) return out(`Abaixo da faixa ${lo}–${hi} com ${fmtKg(kg)} kg: reduza um pouco a carga.`);
   const recent = S.history.map(h => h.entries.find(e => e.ex === x.id && !!e.alt === !!alt && e.log)).filter(Boolean).slice(0, 3);
   if (recent.length === 3) {
     const top = e => Math.max(...e.log.map(s => num(s.kg)).filter(n => !isNaN(n)));
     const total = e => e.log.reduce((a, s) => a + (num(s.reps) || 0), 0);
+    const less = Math.round(kg * 0.9 * 2) / 2;
     if (recent.every(e => top(e) === kg) && total(recent[0]) <= total(recent[2]))
-      return `Travou 3 sessões em ${fmtKg(kg)} kg: reduza 10% (<b>${fmtKg(Math.round(kg * 0.9 * 2) / 2)} kg</b>) e reconstrua.`;
+      return out(`Travou 3 sessões em ${fmtKg(kg)} kg: reduza 10% (<b>${fmtKg(less)} kg</b>) e reconstrua.`, less);
   }
-  return `Mantenha <b>${fmtKg(kg)} kg</b> e busque +1 rep por série (meta: ${hi} em todas).`;
+  return out(`Mantenha <b>${fmtKg(kg)} kg</b> e busque +1 rep por série (meta: ${hi} em todas).`);
+}
+const suggest = (x, i, alt) => advice(x, i, alt).msg;
+
+/* ---------- carga de trabalho, anilhas e aquecimento ----------
+   Carga de trabalho: a primeira carga digitada hoje; sem nada digitado, a
+   indicada pela progressão (ou a última usada). */
+function workKg(wid, x, i, alt){
+  const typed = setsOf(wid, x).map(s => num(s.kg)).find(n => n > 0);
+  if (typed) return typed;
+  const a = advice(x, i, alt).kg;
+  if (a > 0) return a;
+  const l = lastOf(x, alt);
+  return l ? Math.max(0, ...l.sets.map(s => num(s.kg)).filter(n => n > 0)) : 0;
+}
+const barOf = x => BARBELL[x.id] === "w" ? prefs().barW : prefs().bar;
+// Anilhas de cada lado, das maiores para as menores, com as que a academia tem (Ajustes).
+function platesFor(total, bar){
+  const plates = [...prefs().plates].sort((a, b) => b - a);
+  let side = Math.round((total - bar) / 2 * 100) / 100;
+  if (side < 0) return null;
+  const used = [];
+  for (const p of plates) while (side >= p - 1e-9) { used.push(p); side = Math.round((side - p) * 100) / 100; }
+  return { used, rest: side, made: Math.round((total - side * 2) * 100) / 100 };
+}
+// Aproximação do Guia (barra vazia ×10, 50% ×8, 70% ×5, 85% ×3), arredondada de 2,5 em 2,5.
+function warmupFor(kg, bar){
+  const out = [[bar, 10]];
+  [[0.5, 8], [0.7, 5], [0.85, 3]].forEach(([f, r]) => {
+    const w = Math.round(kg * f / 2.5) * 2.5;
+    if (w > out[out.length - 1][0] && w < kg) out.push([w, r]);
+  });
+  return out;
+}
+function loadInfo(wid, x, i, alt){
+  if (!BARBELL[x.id] || alt) return "";
+  const kg = workKg(wid, x, i, alt), bar = barOf(x);
+  if (!(kg > 0)) return "";
+  const p = platesFor(kg, bar);
+  const plates = !p ? `${fmtKg(kg)} kg é menos que a barra (${fmtKg(bar)} kg).`
+    : `<b>${fmtKg(kg)} kg</b> = barra ${fmtKg(bar)} + por lado ${p.used.length ? p.used.map(fmtKg).join(" + ") : "nada"}`
+      + (p.rest > 0 ? ` <span class="warn-t">(não fecha com as anilhas dos Ajustes: assim dá ${fmtKg(p.made)} kg)</span>` : "");
+  const warm = i === 0 ? `<div class="warmup"><span>Aproximação (não conta no volume):</span> ${warmupFor(kg, bar).map(([w, r]) => `${fmtKg(w)} kg × ${r}`).join(" · ")}</div>` : "";
+  return `<div class="plates">${plates}</div>${warm}`;
+}
+
+/* ---------- anotação fixa por exercício (ajustes de máquina, pegada…) ---------- */
+const noteOf = (x, alt) => { const n = S.notes[loadKey(x, alt)]; return n && n.text ? n.text : ""; };
+function noteHtml(x, alt, editing){
+  const t = noteOf(x, alt);
+  if (editing) return `<label class="vh" for="note-${x.id}">Anotação do exercício</label>
+    <input class="note-in" id="note-${x.id}" maxlength="140" enterkeyhint="done" value="${esc(t)}" placeholder="Ex.: banco no furo 4, polia na marca 7">`;
+  return t ? `<button class="note" data-note aria-label="Editar anotação">📌 ${esc(t)}</button>` : `<button class="note-add" data-note>+ anotação</button>`;
 }
 
 // Zera o dia (Concluir/Limpar). A hora vai em S.resets para outro aparelho não devolver as séries.
@@ -165,6 +220,8 @@ function exCard(wid, x, i){
         ${i === 0 ? `<div class="set-hint">Toque no número ao terminar a série: o descanso começa e os campos vazios repetem a série anterior.</div>` : ""}
         ${last ? `<div class="last">Última vez (${esc(last.date)}): <b class="num">${esc(fmtLog(last.sets, time))}</b></div>` : ""}
         ${tip ? `<div class="tip">${tip}</div>` : ""}
+        <div class="load" data-load>${loadInfo(wid, x, i, alt)}</div>
+        <div class="note-box">${noteHtml(x, alt)}</div>
       </div>
       <details class="how"><summary>Técnica e vídeo</summary>
         <div class="how-body">${alt ? `<dl class="cue">
@@ -192,7 +249,7 @@ function renderWorkout(){
     <div class="whead-r"><div class="progress num" id="prog">${doneCount(wid)}/${total} séries</div><div class="clock num" id="clock" hidden></div></div></div>`;
   h += cycleBanner();
   if (restToday) h += `<div class="notice">Hoje é <b>descanso</b>. Abaixo está o próximo treino.</div>`;
-  h += `<details class="notice warm"><summary><b>Aquecimento (6–8 min)</b></summary>4–5 min de bicicleta ou esteira leve · 1–2 min de mobilidade de ${W.mob} · aproximação no 1º exercício: barra vazia ×10, 50% ×8, 70% ×5, 85% ×3 (não contam no volume).</details>`;
+  h += `<details class="notice warm"><summary><b>Aquecimento (6–8 min)</b></summary>4–5 min de bicicleta ou esteira leve · 1–2 min de mobilidade de ${W.mob} · aproximação no 1º exercício: barra vazia ×10, 50% ×8, 70% ×5, 85% ×3 (não contam no volume) — as cargas calculadas aparecem no card 1.</details>`;
   h += `<div class="list">${W.ex.map((x, i) => exCard(wid, x, i)).join("")}</div>
     <div class="walk"><div class="ico num">15–20<small>MIN</small></div><p><b>Caminhada final — ${W.walk}.</b> 5,0 a 6,0 km/h, ritmo conversacional, FC ~110–130 bpm.${W.walk.startsWith("SEM")?" Em plano, funciona como recuperação ativa para as pernas.":""}</p></div>
     ${W.note?`<div class="notice">${esc(W.note)}</div>`:""}
@@ -231,6 +288,7 @@ $("#workout").addEventListener("click", e => {
     card.classList.toggle("complete", en.sets.every(t => t.done));
     updateProgress(wid);
     keepAwake(anyActive());
+    refreshLoad(card, wid, x, i); // a série pode ter recebido carga automaticamente
     if (s.done){
       const name = en.alt ? x.alt.n : x.n;
       // Última série do exercício: sem descanso, segue direto para o próximo.
@@ -261,9 +319,33 @@ $("#workout").addEventListener("click", e => {
 });
 $("#workout").addEventListener("input", e => {
   const inp = e.target.closest("input[data-f]"); if (!inp) return;
-  const wid = WEEK[selDay].w, x = WORKOUTS[wid].ex[+inp.closest(".ex").dataset.i];
+  const wid = WEEK[selDay].w, card = inp.closest(".ex"), i = +card.dataset.i, x = WORKOUTS[wid].ex[i];
   entryOf(wid, x).sets[+inp.dataset.j][inp.dataset.f] = inp.value.trim(); save();
+  if (inp.dataset.f === "kg") refreshLoad(card, wid, x, i);
 });
+// Anilhas e aquecimento acompanham a carga digitada, sem redesenhar o card (o teclado continua aberto).
+function refreshLoad(card, wid, x, i){
+  const el = card.querySelector("[data-load]");
+  if (el) el.innerHTML = loadInfo(wid, x, i, isAlt(wid, x));
+}
+
+/* Anotação: toque para editar; Enter ou sair do campo salva (vazio apaga). */
+$("#workout").addEventListener("click", e => {
+  const b = e.target.closest("[data-note]"); if (!b) return;
+  const card = b.closest(".ex"), wid = WEEK[selDay].w, x = WORKOUTS[wid].ex[+card.dataset.i];
+  const box = card.querySelector(".note-box");
+  box.innerHTML = noteHtml(x, isAlt(wid, x), true);
+  const inp = box.querySelector(".note-in"); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+});
+function saveNote(inp){
+  const card = inp.closest(".ex"); if (!card) return;
+  const wid = WEEK[selDay].w, x = WORKOUTS[wid].ex[+card.dataset.i], alt = isAlt(wid, x);
+  const text = inp.value.trim().slice(0, 140);
+  if (text !== noteOf(x, alt)) { S.notes[loadKey(x, alt)] = { text, t: Date.now() }; save(); }
+  card.querySelector(".note-box").innerHTML = noteHtml(x, alt);
+}
+$("#workout").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches(".note-in")) { e.preventDefault(); e.target.blur(); } });
+$("#workout").addEventListener("focusout", e => { if (e.target.matches(".note-in")) saveNote(e.target); });
 
 function renderActions(){
   $("#actions").innerHTML = `<button class="btn primary" id="finish">Concluir treino</button><button class="btn ghost" id="reset">Limpar séries</button>`;

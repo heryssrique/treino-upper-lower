@@ -5,6 +5,8 @@
    para cargas de aparelhos diferentes não se misturarem.
    S.body    pesagens: [{ d:"AAAA-MM-DD", kg, t }]
    S.cycle   ciclo de 8 semanas: { start:"AAAA-MM-DD" (segunda-feira), t }
+   S.notes   anotação fixa por exercício: { [loadKey]: { text, t } } (texto vazio = apagada)
+   S.prefs   ajustes da academia: { bar, barW, plates:[kg…], t }
    S.resets  hora em que cada dia foi zerado (Concluir/Limpar), para a junção
              entre aparelhos não ressuscitar séries apagadas.
    Cada item guarda t (hora da última alteração): ao sincronizar, vale o mais
@@ -70,11 +72,11 @@ function migrateState(st){
 // Sem mudar updatedAt: a conversão é a mesma no aparelho e no que vier do banco,
 // e um aparelho novo (estado vazio) não pode parecer mais recente que o servidor.
 if (migrateState(S)) saveLocal();
-S.body ||= []; S.resets ||= {};
+S.body ||= []; S.resets ||= {}; S.notes ||= {};
 S.pending ||= []; S.delPending ||= [];
 
 /* ---------- junção entre aparelhos ---------- */
-const STATE_KEYS = ["cur", "last", "body", "cycle", "resets"];
+const STATE_KEYS = ["cur", "last", "body", "cycle", "resets", "notes", "prefs"];
 const pickState = st => Object.fromEntries(STATE_KEYS.map(k => [k, st[k]]));
 const tOf = x => (x && x.t) || 0;
 // "Última vez": a mais recente pela hora de alteração; sem ela (dados antigos), pela data.
@@ -96,7 +98,14 @@ function mergeState(loc, rem){
   Object.entries(loc.last || {}).forEach(([k, v]) => { last[k] = last[k] ? newerLast(v, last[k]) : v; });
   const body = new Map();
   [...(rem.body || []), ...(loc.body || [])].forEach(p => { const q = body.get(p.d); if (!q || tOf(p) >= tOf(q)) body.set(p.d, p); });
-  const cycle = tOf(loc.cycle) >= tOf(rem.cycle) ? (loc.cycle || rem.cycle || null) : rem.cycle;
-  return { cur, last, body: [...body.values()].sort((a, b) => a.d < b.d ? -1 : 1), cycle, resets };
+  const newer = (a, b) => tOf(a) >= tOf(b) ? (a || b || null) : b;
+  const notes = { ...(rem.notes || {}) };
+  Object.entries(loc.notes || {}).forEach(([k, v]) => { notes[k] = newer(v, notes[k]); });
+  return { cur, last, body: [...body.values()].sort((a, b) => a.d < b.d ? -1 : 1), cycle: newer(loc.cycle, rem.cycle), resets,
+    notes, prefs: newer(loc.prefs, rem.prefs) };
 }
+
+/* Ajustes da academia, com os padrões quando nunca foram mudados. */
+const PLATES_ALL = [25, 20, 15, 10, 5, 2.5, 1.25];
+const prefs = () => ({ bar: 20, barW: 10, plates: [20, 15, 10, 5, 2.5, 1.25], ...(S.prefs || {}) });
 

@@ -3,7 +3,7 @@ const entryKey = e => e.ex + (e.alt ? "~alt" : "");
 const sessionsOld = () => [...S.history].sort((a, b) => (a.finishedAt || 0) - (b.finishedAt || 0));
 
 function renderHistory(){
-  renderVolume(); renderEvolution(); renderBody(); renderSessions();
+  renderVolume(); renderEvolution(); renderBody(); renderSessions(); renderPrefs();
 }
 
 /* 2.4 Volume desta semana: séries feitas (treinos concluídos) × planejadas, por músculo. */
@@ -201,3 +201,21 @@ $("#imp-json").addEventListener("change", async e => {
     toast(`Backup importado: ${fresh.length} treino(s) novo(s)`);
   } catch(err) { toast("Arquivo inválido: use um backup .json exportado pelo app"); }
 });
+
+/* Ajustes da academia: peso das barras e anilhas disponíveis. */
+function renderPrefs(){
+  const p = prefs();
+  if (document.activeElement && document.activeElement.closest("#prefs")) return; // não atrapalha quem está digitando
+  $("#pref-bar").value = fmtKg(p.bar); $("#pref-barw").value = fmtKg(p.barW);
+  $("#pref-plates").innerHTML = PLATES_ALL.map(k => `<label class="chip"><input type="checkbox" value="${k}" ${p.plates.includes(k) ? "checked" : ""}> ${fmtKg(k)}</label>`).join("");
+}
+$("#prefs").addEventListener("change", () => {
+  const bar = num($("#pref-bar").value), barW = num($("#pref-barw").value);
+  const plates = [...$("#pref-plates").querySelectorAll("input:checked")].map(c => +c.value);
+  if (!(bar >= 0 && bar <= 50) || !(barW >= 0 && barW <= 50)) { toast("Peso da barra entre 0 e 50 kg"); return renderPrefs(); }
+  if (!plates.length) { toast("Marque ao menos uma anilha"); return renderPrefs(); }
+  S.prefs = { bar, barW, plates, t: Date.now() };
+  save(); renderWorkout(); toast("Ajustes salvos");
+});
+$("#prefs").addEventListener("submit", e => e.preventDefault());
+
