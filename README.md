@@ -7,7 +7,8 @@ App web do plano de hipertrofia Upper/Lower de 4 dias (60 min de musculação + 
 - Cronômetro de descanso automático ao marcar cada série, com notificação no celular
 - Carga e repetições de cada série, com histórico
 - Sugestão de progressão (dupla progressão do Guia): quando subir a carga, manter ou reduzir
-- Alternativa para cada exercício dos dias Upper, com cargas registradas à parte
+- Alternativa para cada exercício (aba no card), com cargas registradas à parte
+- Treino na fila: a sequência Upper A → Lower A → Upper B → Lower B segue o último treino concluído; se faltar um dia, o app abre no treino que ficou para trás
 - Tela sempre ligada enquanto houver série marcada
 - Recordes (maior carga e maior 1RM estimado) avisados ao concluir o treino
 - Ciclo de 8 semanas: intensidade de cada semana e deload na 8ª (metade das séries)
@@ -61,7 +62,7 @@ Coleções no banco `treino`:
 
 Dados de versões antigas do app (uma carga por exercício, indexada pela posição na lista) são convertidos automaticamente, no aparelho e ao baixar do banco.
 
-A API é protegida por uma chave pessoal (`APP_KEY`), enviada pelo app no cabeçalho `Authorization: Bearer <chave>`.
+A API é protegida por uma chave pessoal (`APP_KEY`), enviada pelo app no cabeçalho `Authorization: Bearer <chave>`. Depois de 10 chaves erradas em 15 minutos, o mesmo IP fica bloqueado por 15 minutos (coleção `authfail`, limpa sozinha).
 
 ### Configurar (uma vez)
 

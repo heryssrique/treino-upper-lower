@@ -1,6 +1,19 @@
 // Função, não constante: o app instalado fica aberto por dias e "hoje" precisa virar à meia-noite.
 const todayIdx = () => (new Date().getDay() + 6) % 7;
+/* Treino na fila: a sequência Upper A → Lower A → Upper B → Lower B segue o último
+   treino concluído, não o dia da semana. Faltou a segunda? Na terça o app abre
+   no Upper A. Um treino com série marcada tem prioridade. */
+const ROTATION = WEEK.map(d => d.w).filter(Boolean);
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+function queueWid(){
+  const active = ROTATION.find(w => Object.values(S.cur[w] || {}).some(e => (e.sets || []).some(s => s.done)));
+  if (active) return active;
+  const last = S.history.find(h => ROTATION.includes(h.wid));
+  return last ? ROTATION[(ROTATION.indexOf(last.wid) + 1) % ROTATION.length] : null;
+}
 function defaultDay(t = todayIdx()){
+  const q = queueWid();
+  if (q) return WEEK.findIndex(d => d.w === q);
   for (let k=0;k<7;k++){ const i=(t+k)%7; if (WEEK[i].w) return i; }
   return 0;
 }
@@ -249,6 +262,7 @@ function renderWorkout(){
     <div class="whead-r"><div class="progress num" id="prog">${doneCount(wid)}/${total} séries</div><div class="clock num" id="clock" hidden></div></div></div>`;
   h += cycleBanner();
   if (restToday) h += `<div class="notice">Hoje é <b>descanso</b>. Abaixo está o próximo treino.</div>`;
+  h += queueNotice(wid);
   h += `<details class="notice warm"><summary><b>Aquecimento (6–8 min)</b></summary>4–5 min de bicicleta ou esteira leve · 1–2 min de mobilidade de ${W.mob} · aproximação no 1º exercício: barra vazia ×10, 50% ×8, 70% ×5, 85% ×3 (não contam no volume) — as cargas calculadas aparecem no card 1.</details>`;
   h += `<div class="list">${W.ex.map((x, i) => exCard(wid, x, i)).join("")}</div>
     <div class="walk"><div class="ico num">15–20<small>MIN</small></div><p><b>Caminhada final — ${W.walk}.</b> 5,0 a 6,0 km/h, ritmo conversacional, FC ~110–130 bpm.${W.walk.startsWith("SEM")?" Em plano, funciona como recuperação ativa para as pernas.":""}</p></div>
@@ -260,6 +274,20 @@ function renderWorkout(){
   $("#workout").innerHTML = h;
   updateClock();
   try { history.replaceState(null, "", "#" + wid); } catch(e) {}
+}
+
+// Avisos da fila: treino atrasado (com opção de seguir o dia) e treino de hoje já concluído.
+function queueNotice(wid){
+  const q = queueWid(), today = todayIdx(), todayW = WEEK[today].w, last = S.history[0];
+  if (last && last.wid === wid && sameDay(last.finishedAt, Date.now()) && !doneCount(wid) && q) {
+    const qi = WEEK.findIndex(d => d.w === q);
+    return `<div class="notice queue">✓ ${esc(WORKOUTS[wid].name)} concluído hoje. Próximo da fila: <b>${esc(WORKOUTS[q].name)}</b>.
+      <button class="link-btn" data-day="${qi}">Ver ${esc(WORKOUTS[q].name)}</button></div>`;
+  }
+  if (wid === q && todayW && todayW !== q && !doneCount(wid))
+    return `<div class="notice queue"><b>Na fila:</b> ${esc(WORKOUTS[q].name)} é o próximo da sequência${last ? ` (o último concluído foi ${esc((WORKOUTS[last.wid] || {}).name || last.wid)}, em ${esc(last.date)})` : ""}. Fazer hoje mantém a alternância Upper/Lower.
+      <button class="link-btn" data-day="${today}">Prefiro o ${esc(WORKOUTS[todayW].name)} de hoje</button></div>`;
+  return "";
 }
 
 function updateProgress(wid){
@@ -298,6 +326,8 @@ $("#workout").addEventListener("click", e => {
     return;
   }
   if (e.target.closest("[data-cycle-start]")){ startCycle(); save(); renderWorkout(); return; }
+  const day = e.target.closest("[data-day]");
+  if (day){ selDay = +day.dataset.day; renderWeek(); renderWorkout(); window.scrollTo({ top: 0 }); return; }
   const cyc = e.target.closest("[data-cycle]");
   if (cyc){ setCycleWeek(+cyc.dataset.cycle); renderWorkout(); return; }
   const tab = e.target.closest(".ex-tab");

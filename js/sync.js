@@ -15,10 +15,14 @@ const Sync = (() => {
   $("#sync-api").value = base;
 
   async function api(path, opts = {}){
-    const r = await fetch((base ? base + "/api/" : "api/") + path, { ...opts, headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", ...(opts.headers||{}) } });
+    let r;
+    try { r = await fetch((base ? base + "/api/" : "api/") + path, { ...opts, headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", ...(opts.headers||{}) } }); }
+    catch(e) { throw new Error("sem resposta do servidor (internet fraca ou endereço da API errado)"); }
+    const body = await r.json().catch(() => ({}));
     if (r.status === 401) throw Object.assign(new Error("Chave inválida"), { auth:true });
-    if (!r.ok && r.status !== 409) throw new Error("HTTP " + r.status);
-    return r.json();
+    if (r.status === 429) throw Object.assign(new Error(body.error || "muitas tentativas com chave errada; aguarde alguns minutos"), { locked:true });
+    if (!r.ok && r.status !== 409) throw new Error(`o servidor respondeu ${r.status}${body.error ? " (" + body.error + ")" : ""}`);
+    return body;
   }
   function status(text, kind, msg){
     const p = $("#sync-status"); p.textContent = text; p.className = "pill " + (kind||"");
@@ -77,6 +81,9 @@ const Sync = (() => {
     keep.sort((a,b) => (b.finishedAt||0) - (a.finishedAt||0));
     if (JSON.stringify(keep) !== JSON.stringify(S.history)) { S.history = keep; saveLocal(); refresh(); }
   }
+  const hhmm = () => new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+  let retryT = null;
+  function retrySoon(){ clearTimeout(retryT); retryT = setTimeout(run, 60000); }
   async function run(){
     if (!key) return status("Só neste aparelho", "", "Conecte com a sua chave pessoal para guardar os treinos no MongoDB e acessá-los de qualquer aparelho.");
     if (!navigator.onLine) return status("Offline", "", "Sem internet. As mudanças ficam no aparelho e são enviadas quando a conexão voltar.");
@@ -88,13 +95,16 @@ const Sync = (() => {
       status("Sincronizado", "ok", `Última sincronização: ${new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}.`);
     } catch(e) {
       if (e.auth) { disconnect(); status("Chave inválida", "err", "A chave não confere com a APP_KEY configurada no servidor."); }
-      else status("Erro", "err", "Não foi possível falar com o banco agora. Os dados continuam salvos no aparelho.");
+      else if (e.locked) status("Bloqueado", "err", `${e.message}.`);
+      else { status("Erro", "err", `Falha às ${hhmm()}: ${e.message}. Os dados continuam salvos no aparelho; nova tentativa em 1 minuto.`); retrySoon(); }
     } finally { busy = false; }
   }
   function pushStateSoon(){
     if (!key) return;
     clearTimeout(timer);
-    timer = setTimeout(() => pushState().then(() => status("Sincronizado", "ok")).catch(() => status("Pendente", "", "Mudanças ainda não enviadas. Tentaremos de novo em seguida.")), 1500);
+    timer = setTimeout(() => pushState().then(() => status("Sincronizado", "ok")).catch(e => {
+      status("Pendente", "", `Mudanças ainda não enviadas (${e.message}, às ${hhmm()}). Nova tentativa em 1 minuto.`); retrySoon();
+    }), 1500);
   }
   function connect(k, b){
     key = k.trim(); base = (b || "").trim().replace(/\/+$/, "").replace(/\/api$/, "");

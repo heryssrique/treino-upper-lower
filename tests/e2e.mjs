@@ -21,7 +21,8 @@ async function open(hash = "UA", { state, connect } = {}){
   const p = await ctx.newPage();
   p.on("pageerror", e => errors.push(e.message));
   await p.goto(`${U}/#${hash}`);
-  if (state) { await p.evaluate(s => localStorage.setItem("ul4-v1", JSON.stringify(s)), state); await p.reload(); }
+  // Navegação nova (não reload): o app grava o treino aberto no endereço (#LA), que teria prioridade.
+  if (state) { await p.evaluate(s => localStorage.setItem("ul4-v1", JSON.stringify(s)), state); await p.goto(`${U}/?n=${Date.now()}#${hash}`); }
   if (connect) {
     await p.click("#tab-hist"); await p.fill("#sync-key", KEY); await p.click("#sync-form button");
     await p.waitForFunction(() => document.querySelector("#sync-status").textContent === "Sincronizado");
@@ -232,6 +233,42 @@ try {
   // Sem APP_KEY o script falha com mensagem clara
   assert.throws(() => execFileSync(process.execPath, ["scripts/backup.mjs", bk], { env: { ...process.env, API_URL: U, APP_KEY: "" }, stdio: "pipe" }), /APP_KEY/);
   ok("backup automático criptografado: gerar pela API e restaurar com a chave");
+
+  // Treino na fila: segue o último concluído, não o dia da semana; treino em andamento tem prioridade
+  const hist = wid => [{ id: "q-" + wid, wid, date: "01/11/2026", finishedAt: Date.parse("2026-11-01T10:00:00"), entries: [] }];
+  const base = { v: 3, cur: {}, last: {}, body: [], resets: {}, notes: {} };
+  const Q1 = await open("", { state: { ...base, history: hist("LB") } });
+  assert.match(await Q1.textContent(".whead h2"), /Upper A/, "depois do Lower B vem o Upper A");
+  const todayW = await Q1.evaluate(() => WEEK[todayIdx()].w);
+  if (todayW && todayW !== "UA") {
+    assert.match(await Q1.textContent(".queue"), /Na fila: Upper A é o próximo/);
+    await Q1.click(".queue [data-day]");
+    assert.match(await Q1.textContent(".whead h2"), new RegExp((await Q1.evaluate(w => WORKOUTS[w].name, todayW))));
+  }
+  const Q2 = await open("", { state: { ...base, history: hist("UA") } });
+  assert.match(await Q2.textContent(".whead h2"), /Lower A/);
+  const Q3 = await open("", { state: { ...base, history: hist("UA"), cur: { UB: { "face-pull": { sets: [{ kg: "20", reps: "15", done: true }], t: 1 } } } } });
+  assert.match(await Q3.textContent(".whead h2"), /Upper B/, "treino com série marcada tem prioridade");
+  ok("treino na fila: sequência pelo último treino concluído");
+
+  // Alternativas também nos dias Lower
+  const L = await open("LB");
+  assert.equal(await L.locator(".ex-tab").count(), 2 * 6, "todos os 6 exercícios do Lower B têm abas");
+  await L.click(`${card(3)} .ex-tab[data-alt="1"]`);
+  assert.equal(await L.textContent(`${card(3)} h3`), "Elevação pélvica na máquina (ou no Smith)");
+  assert.equal(await L.locator(`${card(3)} [data-load] .plates`).count(), 0, "sem calculadora de anilhas na alternativa");
+  ok("alternativas nos dias Lower");
+
+  // Erro de sincronização mostra o motivo e o horário
+  const E = await open("UA", { connect: true });
+  await E.route("**/api/**", r => r.abort());
+  await E.evaluate(() => Sync.run());
+  await E.waitForFunction(() => document.querySelector("#sync-status").textContent === "Erro");
+  assert.match(await E.textContent("#sync-msg"), /Falha às \d\d:\d\d: sem resposta do servidor.*nova tentativa em 1 minuto/);
+  await E.unroute("**/api/**");
+  await E.evaluate(() => Sync.run());
+  await E.waitForFunction(() => document.querySelector("#sync-status").textContent === "Sincronizado");
+  ok("erro de sincronização com motivo, horário e nova tentativa");
 
   assert.deepEqual(errors, [], "sem erros de JavaScript na página");
   ok("nenhum erro de JavaScript");

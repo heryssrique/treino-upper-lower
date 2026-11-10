@@ -12,9 +12,10 @@ const { default: health } = await import("../api/health.js");
 const { closeDb } = await import("../api/_lib/db.js");
 
 // Chama um handler com req/res mínimos, como a Vercel faz.
-function call(handler, { method = "GET", url = "/", body, key = process.env.APP_KEY, origin } = {}) {
+function call(handler, { method = "GET", url = "/", body, key = process.env.APP_KEY, origin, ip = "10.0.0.1" } = {}) {
   return new Promise(resolve => {
     const headers = key ? { authorization: "Bearer " + key } : {};
+    headers["x-forwarded-for"] = ip;
     if (origin) headers.origin = origin;
     const req = { method, url, body, headers };
     const res = { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; },
@@ -75,6 +76,12 @@ assert.match(r.headers["Access-Control-Allow-Headers"], /Authorization/);
 r = await call(state, { origin: PAGES }); assert.equal(r.status, 200); assert.equal(r.headers["Access-Control-Allow-Origin"], PAGES);
 r = await call(health, { origin: PAGES }); assert.equal(r.headers["Access-Control-Allow-Origin"], PAGES);
 r = await call(state, { origin: "https://site-qualquer.com" }); assert.equal(r.headers["Access-Control-Allow-Origin"], undefined);
+
+// Limite de tentativas: 10 chaves erradas do mesmo IP bloqueiam esse IP por 15 min
+for (let k = 0; k < 10; k++) { r = await call(state, { key: "errada-errada-errada!", ip: "6.6.6.6" }); assert.equal(r.status, 401); }
+r = await call(state, { key: "errada-errada-errada!", ip: "6.6.6.6" }); assert.equal(r.status, 429, "bloqueado após 10 erros");
+r = await call(state, { ip: "6.6.6.6" }); assert.equal(r.status, 429, "bloqueio vale até com a chave certa");
+r = await call(state, { ip: "7.7.7.7" }); assert.equal(r.status, 200, "outro IP não é afetado");
 
 await closeDb(); await mem.stop();
 console.log("API ok: todos os testes passaram");
