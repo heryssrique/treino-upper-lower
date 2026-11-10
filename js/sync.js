@@ -59,15 +59,25 @@ const Sync = (() => {
     }
   }
   async function pull(){
-    const { state, sessions = [], deleted = [] } = await api("state");
+    const first = await api("state"), { state, deleted = [] } = first, page = first.page || 500;
+    let sessions = first.sessions || [], complete = sessions.length < page;
+    // Mais de uma página de treinos: busca as mais antigas uma vez por abertura do app.
+    if (!complete && !fetchedAll) {
+      for (let r = { sessions }; r.sessions.length >= page; ) {
+        const last = sessions[sessions.length - 1];
+        r = await api(`sessions?before=${last.finishedAt}&beforeId=${encodeURIComponent(last.id)}`);
+        sessions = sessions.concat(r.sessions);
+      }
+      complete = fetchedAll = true;
+    }
     migrateState(state);
     apply(mergeState(S, state));
     // Treinos: vale a versão do servidor, exceto os que ainda vão ser enviados daqui.
     // Só some daqui o que o servidor marcou como apagado (em outro aparelho); um
     // treino que apenas falta no servidor (ex.: banco novo) volta para a fila de envio.
-    // O servidor manda até 500: os mais antigos que isso ficam como estão.
+    // Só com a primeira página em mãos, os treinos mais antigos que ela ficam como estão.
     const server = new Map(sessions.map(h => [h.id, h])), gone = new Set(deleted);
-    const oldest = sessions.length >= 500 ? Math.min(...sessions.map(h => h.finishedAt || 0)) : -Infinity;
+    const oldest = complete ? -Infinity : Math.min(...sessions.map(h => h.finishedAt || 0));
     const keep = [];
     S.history.forEach(h => {
       if (gone.has(h.id)) { S.pending = S.pending.filter(x => x !== h.id); return; }
@@ -82,7 +92,7 @@ const Sync = (() => {
     if (JSON.stringify(keep) !== JSON.stringify(S.history)) { S.history = keep; saveLocal(); refresh(); }
   }
   const hhmm = () => new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
-  let retryT = null;
+  let retryT = null, fetchedAll = false;
   function retrySoon(){ clearTimeout(retryT); retryT = setTimeout(run, 60000); }
   async function run(){
     if (!key) return status("Só neste aparelho", "", "Conecte com a sua chave pessoal para guardar os treinos no MongoDB e acessá-los de qualquer aparelho.");

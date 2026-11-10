@@ -57,8 +57,13 @@
       </div>
     </section>
     <section class="panel">
-      <h2>Volume desta semana</h2>
-      <p class="fine">Séries diretas dos treinos concluídos desde segunda-feira.</p>
+      <div class="panel-head"><h2>Semana</h2>
+        <div class="week-nav" role="group" aria-label="Escolher semana">
+          <button class="t-adj" id="wk-prev" aria-label="Semana anterior">‹</button>
+          <span id="wk-label" class="num"></span>
+          <button class="t-adj" id="wk-next" aria-label="Semana seguinte">›</button></div></div>
+      <div id="wk-sum"></div>
+      <p class="fine">Volume: séries diretas dos treinos concluídos na semana.</p>
       <div id="vol"></div>
     </section>
     <section class="panel">

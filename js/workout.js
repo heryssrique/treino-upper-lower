@@ -100,12 +100,18 @@ function advice(x, i, alt){
   const work = sets.filter(s => isNaN(kg) || num(s.kg) === kg);
   const reps = work.map(s => num(s.reps));
   const hit = work.length >= x.s && reps.every(r => r >= hi);
+  // Reps que sobraram (coluna "Sobra"), comparadas com a meta da semana do ciclo.
+  const tgt = targetRir(), rirs = work.map(s => num(s.rir)).filter(n => !isNaN(n));
+  const hard = rirs.length && tgt !== null ? Math.min(...rirs) : NaN; // a série mais difícil
+  const st = step(x, i), up = st ? `suba para <b>${fmtKg(kg + st)} kg</b>` : `suba <b>1–2 kg</b> (o próximo peso disponível)`;
+  const reserve = tgt === null ? "" : ` e pare com ~${tgt} rep${tgt > 1 ? "s" : ""} sobrando`;
   if (isNaN(kg)) return out(hit ? `Meta atingida (${hi} reps em todas): acrescente carga.` : `Busque +1 rep por série (meta: ${hi} em todas).`);
-  if (hit) {
-    const st = step(x, i);
-    return st ? out(`Meta atingida: suba para <b>${fmtKg(kg + st)} kg</b>.`, kg + st) : out(`Meta atingida: suba <b>1–2 kg</b> (o próximo peso disponível).`);
-  }
-  if (reps.every(r => r < lo)) return out(`Abaixo da faixa ${lo}–${hi} com ${fmtKg(kg)} kg: reduza um pouco a carga.`);
+  if (hit && hard < tgt) return out(`Meta atingida, mas no limite (sobrou ${hard}; a semana pede ${tgt}): repita <b>${fmtKg(kg)} kg</b> mais uma sessão.`);
+  if (hit) return out(`Meta atingida: ${up}.`, st ? kg + st : kg);
+  if (hard >= tgt + 2) return out(`Carga leve para a semana (sobraram ${hard}+ reps; a meta é ${tgt}): ${up}.`, st ? kg + st : kg);
+  if (reps.every(r => r < lo)) return out(hard >= tgt
+    ? `Abaixo da faixa ${lo}–${hi}, mas ainda sobrava rep: com ${fmtKg(kg)} kg, vá até ${lo}–${hi}${reserve}.`
+    : `Abaixo da faixa ${lo}–${hi} com ${fmtKg(kg)} kg: reduza um pouco a carga.`);
   const recent = S.history.map(h => h.entries.find(e => e.ex === x.id && !!e.alt === !!alt && e.log)).filter(Boolean).slice(0, 3);
   if (recent.length === 3) {
     const top = e => Math.max(...e.log.map(s => num(s.kg)).filter(n => !isNaN(n)));
@@ -114,7 +120,7 @@ function advice(x, i, alt){
     if (recent.every(e => top(e) === kg) && total(recent[0]) <= total(recent[2]))
       return out(`Travou 3 sessões em ${fmtKg(kg)} kg: reduza 10% (<b>${fmtKg(less)} kg</b>) e reconstrua.`, less);
   }
-  return out(`Mantenha <b>${fmtKg(kg)} kg</b> e busque +1 rep por série (meta: ${hi} em todas).`);
+  return out(`Mantenha <b>${fmtKg(kg)} kg</b> e busque +1 rep por série (meta: ${hi} em todas${reserve}).`);
 }
 const suggest = (x, i, alt) => advice(x, i, alt).msg;
 
@@ -224,14 +230,15 @@ function exCard(wid, x, i){
         <div class="prescr"><div class="sr num">${nSets(x)} × ${esc(x.r)}${isDeload() ? ' <span class="dl">deload</span>' : ""}</div><div class="rest">Descanso ${x.restTxt}</div></div>
       </div>
       <div class="sgrid" role="group" aria-label="Séries">
-        <span class="sg-h">Série</span><span class="sg-h">Carga (kg)</span><span class="sg-h">${time ? "Segundos" : "Reps"}</span>
+        <span class="sg-h">Série</span><span class="sg-h">Carga (kg)</span><span class="sg-h">${time ? "Segundos" : "Reps"}</span><span class="sg-h" title="Quantas reps ainda dava para fazer (opcional)">Sobra</span>
         ${sets.map((s, j) => `<button class="set num" data-j="${j}" aria-pressed="${!!s.done}" aria-label="Série ${j+1}${s.done?" feita":""}">${j+1}</button>
         <input class="num" data-f="kg" data-j="${j}" inputmode="decimal" enterkeyhint="next" aria-label="Carga da série ${j+1}" value="${esc(s.kg)}" placeholder="${ph(j, "kg")}">
-        <input class="num" data-f="reps" data-j="${j}" inputmode="numeric" enterkeyhint="done" aria-label="${time ? "Segundos" : "Repetições"} da série ${j+1}" value="${esc(s.reps)}" placeholder="${ph(j, "reps")}">`).join("")}
+        <input class="num" data-f="reps" data-j="${j}" inputmode="numeric" enterkeyhint="next" aria-label="${time ? "Segundos" : "Repetições"} da série ${j+1}" value="${esc(s.reps)}" placeholder="${ph(j, "reps")}">
+        <input class="num rir" data-f="rir" data-j="${j}" inputmode="numeric" maxlength="2" enterkeyhint="done" aria-label="Reps que ainda sobravam na série ${j+1} (opcional${targetRir() !== null ? ", meta da semana: " + targetRir() : ""})" value="${esc(s.rir || "")}" placeholder="${targetRir() ?? "—"}">`).join("")}
       </div>
       <div class="ex-info">
         ${i === 0 ? `<div class="set-hint">Toque no número ao terminar a série: o descanso começa e os campos vazios repetem a série anterior.</div>` : ""}
-        ${last ? `<div class="last">Última vez (${esc(last.date)}): <b class="num">${esc(fmtLog(last.sets, time))}</b></div>` : ""}
+        ${last ? `<div class="last">Última vez (${esc(last.date)}): <b class="num">${esc(fmtLog(last.sets, time))}</b>${last.sets.some(s => s.rir) ? ` · sobra ${esc(last.sets.map(s => s.rir || "—").join("/"))}` : ""}</div>` : ""}
         ${tip ? `<div class="tip">${tip}</div>` : ""}
         <div class="load" data-load>${loadInfo(wid, x, i, alt)}</div>
         <div class="note-box">${noteHtml(x, alt)}</div>
@@ -262,7 +269,7 @@ function renderWorkout(){
     <div class="whead-r"><div class="progress num" id="prog">${doneCount(wid)}/${total} séries</div><div class="clock num" id="clock" hidden></div></div></div>`;
   h += cycleBanner();
   if (restToday) h += `<div class="notice">Hoje é <b>descanso</b>. Abaixo está o próximo treino.</div>`;
-  h += queueNotice(wid);
+  h += queueNotice(wid) + weekNotice();
   h += `<details class="notice warm"><summary><b>Aquecimento (6–8 min)</b></summary>4–5 min de bicicleta ou esteira leve · 1–2 min de mobilidade de ${W.mob} · aproximação no 1º exercício: barra vazia ×10, 50% ×8, 70% ×5, 85% ×3 (não contam no volume) — as cargas calculadas aparecem no card 1.</details>`;
   h += `<div class="list">${W.ex.map((x, i) => exCard(wid, x, i)).join("")}</div>
     <div class="walk"><div class="ico num">15–20<small>MIN</small></div><p><b>Caminhada final — ${W.walk}.</b> 5,0 a 6,0 km/h, ritmo conversacional, FC ~110–130 bpm.${W.walk.startsWith("SEM")?" Em plano, funciona como recuperação ativa para as pernas.":""}</p></div>
@@ -397,7 +404,7 @@ function finish(){
     const en = (S.cur[wid] || {})[x.id]; if (!en) return;
     const sets = setsOf(wid, x), done = sets.filter(s => s.done);
     // Vale o que foi marcado; sem nada marcado, o que foi digitado.
-    const log = (done.length ? done : sets.filter(s => s.kg || s.reps)).map(s => ({ kg:s.kg, reps:s.reps }));
+    const log = (done.length ? done : sets.filter(s => s.kg || s.reps)).map(s => ({ kg:s.kg, reps:s.reps, ...(s.rir ? { rir:s.rir } : {}) }));
     if (!log.length) return;
     const alt = !!(en.alt && x.alt);
     S.last[loadKey(x, alt)] = { date, sets: log, t: Date.now() };

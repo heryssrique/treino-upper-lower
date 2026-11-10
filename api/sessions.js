@@ -1,12 +1,19 @@
+// GET    /api/sessions?before=<finishedAt>&beforeId=<id> → página seguinte (mais antiga) de treinos
 // POST   /api/sessions        → grava um treino concluído (reenviar o mesmo id não duplica)
 // DELETE /api/sessions?id=... → apaga um treino do histórico (fica a marca deleted)
-import { getDb } from "./_lib/db.js";
+import { getDb, PAGE, sessionsPage } from "./_lib/db.js";
 import { route, send, readJson } from "./_lib/http.js";
 
 const WORKOUTS = ["UA", "LA", "UB", "LB"];
 
-export default route(["POST", "DELETE"], async (req, res) => {
+export default route(["GET", "POST", "DELETE"], async (req, res) => {
   const sessions = (await getDb()).collection("sessions");
+
+  if (req.method === "GET") {
+    const q = new URL(req.url, "http://x").searchParams, at = Number(q.get("before")), id = q.get("beforeId") || "";
+    if (!Number.isFinite(at)) return send(res, 400, { error: "Informe before (finishedAt do último treino recebido)" });
+    return send(res, 200, { sessions: await sessionsPage(sessions, { at, id }), page: PAGE });
+  }
 
   if (req.method === "DELETE") {
     const id = new URL(req.url, "http://x").searchParams.get("id");
@@ -35,7 +42,7 @@ export default route(["POST", "DELETE"], async (req, res) => {
       ...(e.ex ? { ex: String(e.ex).slice(0, 64), alt: !!e.alt } : {}),
       ...(Array.isArray(e.pr) ? { pr: e.pr.filter(p => p === "carga" || p === "1rm") } : {}),
       // Carga e reps de cada série (versões novas do app).
-      ...(Array.isArray(e.log) ? { log: e.log.slice(0, 10).map(x => ({ kg: String(x?.kg ?? "").slice(0, 10), reps: String(x?.reps ?? "").slice(0, 10) })) } : {}),
+      ...(Array.isArray(e.log) ? { log: e.log.slice(0, 10).map(x => ({ kg: String(x?.kg ?? "").slice(0, 10), reps: String(x?.reps ?? "").slice(0, 10), ...(x?.rir !== undefined && x?.rir !== "" ? { rir: String(x.rir).slice(0, 3) } : {}) })) } : {}),
       n: String(e.n || "").slice(0, 80),
       kg: String(e.kg || "").slice(0, 20),
       reps: String(e.reps || "").slice(0, 40),

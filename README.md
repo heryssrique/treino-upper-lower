@@ -7,6 +7,8 @@ App web do plano de hipertrofia Upper/Lower de 4 dias (60 min de musculação + 
 - Cronômetro de descanso automático ao marcar cada série, com notificação no celular
 - Carga e repetições de cada série, com histórico
 - Sugestão de progressão (dupla progressão do Guia): quando subir a carga, manter ou reduzir
+- Esforço por série (opcional): reps que ainda sobravam, comparadas com a meta da semana do ciclo; ajusta a sugestão
+- Resumo semanal: treinos feitos, tempo de treino, recordes, peso médio e volume por músculo, com navegação entre semanas
 - Alternativa para cada exercício (aba no card), com cargas registradas à parte
 - Treino na fila: a sequência Upper A → Lower A → Upper B → Lower B segue o último treino concluído; se faltar um dia, o app abre no treino que ficou para trás
 - Tela sempre ligada enquanto houver série marcada
@@ -38,8 +40,8 @@ js/                   scripts clássicos, carregados em ordem e sem build
 sw.js                 service worker: offline e aviso de fim do descanso
 manifest.webmanifest  dados para instalar como app
 api/                  funções serverless da Vercel
-  state.js            GET/PUT  /api/state     estado atual + histórico
-  sessions.js         POST/DELETE /api/sessions  treinos concluídos
+  state.js            GET/PUT  /api/state     estado atual + 1ª página do histórico
+  sessions.js         GET/POST/DELETE /api/sessions  páginas antigas, gravar e apagar treinos
   health.js           GET /api/health         API e banco no ar?
   _lib/               conexão com o MongoDB, autenticação e CORS
 scripts/dev.mjs       servidor local (app + API)

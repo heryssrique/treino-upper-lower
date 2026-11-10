@@ -6,20 +6,71 @@ function renderHistory(){
   renderVolume(); renderEvolution(); renderBody(); renderSessions(); renderPrefs();
 }
 
-/* 2.4 Volume desta semana: séries feitas (treinos concluídos) × planejadas, por músculo. */
-function renderVolume(){
+/* Resumo da semana (segunda a domingo): treinos feitos de 4, tempo de treino,
+   recordes, peso médio e volume por músculo × plano. weekOff 0 = semana atual. */
+let weekOff = 0;
+function weekRange(off){
+  const from = mondayOf(); from.setDate(from.getDate() - 7 * off);
+  const to = new Date(from); to.setDate(to.getDate() + 7);
+  return { from, to };
+}
+function weekSummary(off){
+  const { from, to } = weekRange(off), inWeek = t => t >= from.getTime() && t < to.getTime();
+  const sessions = S.history.filter(h => inWeek(h.finishedAt || 0));
+  const deload = cycleWeek(from) === CYCLE_WEEKS && !!S.cycle;
   const plan = {}, done = {};
-  Object.values(WORKOUTS).forEach(W => W.ex.forEach(x => { plan[MUSCLE[x.id]] = (plan[MUSCLE[x.id]] || 0) + nSets(x); }));
-  const from = mondayOf().getTime();
-  S.history.filter(h => (h.finishedAt || 0) >= from).forEach(h => h.entries.forEach(e => {
-    const g = MUSCLE[e.ex]; if (g) done[g] = (done[g] || 0) + (e.sets || 0);
-  }));
-  const rows = Object.entries(plan).sort((a, b) => b[1] - a[1]);
+  Object.values(WORKOUTS).forEach(W => W.ex.forEach(x => { plan[MUSCLE[x.id]] = (plan[MUSCLE[x.id]] || 0) + (deload ? Math.ceil(x.s / 2) : x.s); }));
+  sessions.forEach(h => h.entries.forEach(e => { const g = MUSCLE[e.ex]; if (g) done[g] = (done[g] || 0) + (e.sets || 0); }));
+  const avgKg = (a, b) => { const p = bodyPts().filter(q => { const t = parseIso(q.d).getTime(); return t >= a && t < b; }); return p.length ? p.reduce((s, q) => s + q.kg, 0) / p.length : null; };
+  const kg = avgKg(from.getTime(), to.getTime()), prevKg = avgKg(from.getTime() - 6048e5, from.getTime());
+  return { from, to, sessions, plan, done, deload, kg, prevKg,
+    wids: new Set(sessions.map(h => h.wid)), mins: sessions.reduce((a, h) => a + (h.dur || 0), 0),
+    prs: sessions.flatMap(h => h.entries.filter(e => e.pr).map(e => e.n)) };
+}
+const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`;
+function renderVolume(){
+  const w = weekSummary(weekOff), last = new Date(w.to); last.setDate(last.getDate() - 1);
+  $("#wk-label").textContent = weekOff === 0 ? "Esta semana" : `${fmtDay(w.from)} a ${fmtDay(last)}`;
+  $("#wk-next").disabled = weekOff === 0;
+  const kgLine = w.kg === null ? "—" : `${fmtNum(w.kg)} kg${w.prevKg !== null ? ` (${w.kg - w.prevKg >= 0 ? "+" : "−"}${fmtNum(Math.abs(w.kg - w.prevKg))} na semana)` : ""}`;
+  $("#wk-sum").innerHTML = `<dl class="wk">
+    <div><dt>Treinos</dt><dd><b class="num">${w.wids.size} de ${ROTATION.length}</b>
+      <span class="wk-days">${ROTATION.map(id => `<span class="wk-day ${w.wids.has(id) ? "on" : ""}" title="${esc(WORKOUTS[id].name)}">${w.wids.has(id) ? "✓ " : ""}${esc(WORKOUTS[id].name.replace("Upper", "UP").replace("Lower", "LO"))}</span>`).join("")}</span></dd></div>
+    <div><dt>Tempo de treino</dt><dd class="num">${w.mins ? fmtMin(w.mins) + (w.sessions.length ? ` · ${fmtMin(Math.round(w.mins / w.sessions.length))} por treino` : "") : "—"}</dd></div>
+    <div><dt>Recordes</dt><dd>${w.prs.length ? `🏆 ${w.prs.length}: ${esc([...new Set(w.prs)].join(", "))}` : "—"}</dd></div>
+    <div><dt>Peso médio</dt><dd class="num">${kgLine}</dd></div>
+    ${w.deload ? `<div><dt>Ciclo</dt><dd>Semana de deload (plano com metade das séries)</dd></div>` : ""}
+  </dl>`;
+  const rows = Object.entries(w.plan).sort((a, b) => b[1] - a[1]);
   $("#vol").innerHTML = `<table class="vol"><thead><tr><th>Músculo</th><th class="r">Feitas / plano</th><th class="vbar-h" aria-hidden="true"></th></tr></thead><tbody>
-    ${rows.map(([g, p]) => { const d = done[g] || 0; return `<tr><td>${g}</td><td class="r num">${d} / ${p}</td>
+    ${rows.map(([g, p]) => { const d = w.done[g] || 0; return `<tr><td>${g}</td><td class="r num">${d} / ${p}</td>
       <td class="vbar-c"><span class="vbar" aria-hidden="true"><span style="width:${Math.min(100, d / p * 100)}%"></span></span></td></tr>`; }).join("")}
   </tbody></table>`;
 }
+$("#wk-prev").addEventListener("click", () => { weekOff++; renderVolume(); });
+$("#wk-next").addEventListener("click", () => { if (weekOff) { weekOff--; renderVolume(); } });
+
+// Aviso na tela do treino quando a semana vira: resumo da semana anterior, uma vez.
+const SEEN_KEY = "ul4-week-seen";
+function weekNotice(){
+  let seen = ""; try { seen = localStorage.getItem(SEEN_KEY) || ""; } catch(e) {}
+  const monday = isoDay(mondayOf());
+  if (seen === monday) return "";
+  const w = weekSummary(1);
+  if (!w.sessions.length) return "";
+  const peito = `peito ${w.done.Peito || 0}/${w.plan.Peito}`, biceps = `bíceps ${w.done["Bíceps"] || 0}/${w.plan["Bíceps"]}`;
+  return `<div class="notice week-sum"><b>Semana passada:</b> ${w.wids.size} de ${ROTATION.length} treinos${w.prs.length ? ` · 🏆 ${w.prs.length} recorde${w.prs.length > 1 ? "s" : ""}` : ""} · ${peito} · ${biceps}.
+    <button class="link-btn" data-week-open>Ver resumo</button><button class="link-btn" data-week-seen aria-label="Dispensar resumo">dispensar</button></div>`;
+}
+function markWeekSeen(){ try { localStorage.setItem(SEEN_KEY, isoDay(mondayOf())); } catch(e) {} }
+$("#workout").addEventListener("click", e => {
+  if (e.target.closest("[data-week-seen]")) { markWeekSeen(); e.target.closest(".week-sum").remove(); }
+  if (e.target.closest("[data-week-open]")) {
+    markWeekSeen(); weekOff = 1; e.target.closest(".week-sum").remove();
+    document.querySelector('.tab[data-view="hist"]').click();
+    $("#wk-sum").scrollIntoView({ block: "start" });
+  }
+});
 
 /* 2.1 Evolução por exercício: melhor 1RM estimado de cada treino (ou melhor série, sem carga). */
 let evoKey = "";
@@ -121,7 +172,7 @@ function refreshLast(keys){
   keys.forEach(k => {
     const h = S.history.find(h => h.entries.some(e => e.log && entryKey(e) === k));
     const e = h && h.entries.find(e => e.log && entryKey(e) === k);
-    S.last[k] = e ? { date: h.date, sets: e.log.map(s => ({ kg: s.kg, reps: s.reps })), t: Date.now() } : { date: "", sets: [], t: Date.now() };
+    S.last[k] = e ? { date: h.date, sets: e.log.map(s => ({ kg: s.kg, reps: s.reps, ...(s.rir ? { rir: s.rir } : {}) })), t: Date.now() } : { date: "", sets: [], t: Date.now() };
   });
 }
 // Recalcula os recordes dos exercícios afetados em todos os treinos, em ordem; os que mudam voltam à fila de envio.
@@ -173,10 +224,10 @@ function download(name, text, type){
 const stamp = () => isoDay(new Date());
 $("#exp-csv").addEventListener("click", () => {
   const q = v => { v = String(v ?? ""); return /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = [["data", "treino", "exercicio", "alternativa", "serie", "carga_kg", "reps", "duracao_min", "duracao_total_min"]];
+  const rows = [["data", "treino", "exercicio", "alternativa", "serie", "carga_kg", "reps", "duracao_min", "duracao_total_min", "reps_em_reserva"]];
   sessionsOld().forEach(h => h.entries.forEach(e => {
     const base = [h.date, (WORKOUTS[h.wid] || {}).name || h.wid, e.n, e.alt ? "sim" : "não"];
-    if (e.log) e.log.forEach((s, i) => rows.push([...base, i + 1, s.kg, s.reps, h.dur || "", h.durTotal || ""]));
+    if (e.log) e.log.forEach((s, i) => rows.push([...base, i + 1, s.kg, s.reps, h.dur || "", h.durTotal || "", s.rir || ""]));
     else rows.push([...base, "", e.kg, e.reps, h.dur || "", h.durTotal || ""]);
   }));
   // ; e BOM: abre direto no Excel em português.

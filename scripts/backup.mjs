@@ -13,8 +13,16 @@ if (KEY.length < 16) { console.error("Defina APP_KEY (segredo do repositório) c
 const res = await fetch(`${API}/api/state`, { headers: { Authorization: "Bearer " + KEY } });
 if (res.status === 401) { console.error("APP_KEY recusada pela API: confira o segredo do repositório."); process.exit(1); }
 if (!res.ok) { console.error(`API respondeu HTTP ${res.status}.`); process.exit(1); }
-const { state, sessions, deleted } = await res.json();
+const first = await res.json(), { state, deleted } = first;
+let sessions = first.sessions;
 if (!Array.isArray(sessions)) { console.error("Resposta da API sem a lista de treinos."); process.exit(1); }
+// Treinos vêm em páginas (500 por vez): busca todas.
+for (let page = sessions; page.length >= (first.page || 500); ) {
+  const last = sessions[sessions.length - 1];
+  const r = await fetch(`${API}/api/sessions?before=${last.finishedAt}&beforeId=${encodeURIComponent(last.id)}`, { headers: { Authorization: "Bearer " + KEY } });
+  if (!r.ok) { console.error(`API respondeu HTTP ${r.status} ao buscar treinos antigos.`); process.exit(1); }
+  page = (await r.json()).sessions; sessions = sessions.concat(page);
+}
 
 // Mesmo formato do "Exportar backup (JSON)" do app.
 const pick = ["cur", "last", "body", "cycle", "resets", "notes", "prefs"];

@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 
 const PORT = 3900 + Math.floor(Math.random() * 90), KEY = "chave-e2e-123456789", U = `http://localhost:${PORT}`;
-const server = spawn(process.execPath, ["scripts/dev.mjs"], { env: { ...process.env, PORT: String(PORT), APP_KEY: KEY, MONGODB_URI: "" }, stdio: ["ignore", "pipe", "inherit"] });
+const server = spawn(process.execPath, ["scripts/dev.mjs"], { env: { ...process.env, PORT: String(PORT), APP_KEY: KEY, MONGODB_URI: "", SESSIONS_PAGE: "2" /* páginas pequenas: testa a paginação */ }, stdio: ["ignore", "pipe", "inherit"] });
 await new Promise((ok, fail) => {
   server.stdout.on("data", d => { if (String(d).includes("App em")) ok(); });
   server.on("exit", c => fail(new Error("servidor saiu: " + c)));
@@ -295,6 +295,55 @@ try {
     S.started.UA = times[0]; updateClock(); return document.querySelector("#clock").textContent; });
   assert.match(big, /^72 min de treino · passou de 60: corte o último exercício/);
   ok("tempo útil sem espera por aparelho; aviso de 60 min só pelo tempo útil");
+
+  // Paginação: o servidor de teste manda 2 treinos por página; o app e o backup juntam todas
+  for (const k of [1, 2, 3, 4, 5]) await api("sessions", { method: "POST", body: JSON.stringify({ id: "pg-" + k, wid: "LA", date: "0" + k + "/09/2026", finishedAt: Date.parse(`2026-09-0${k}T10:00:00`),
+    entries: [{ ex: "leg-press-45", alt: false, n: "Leg press 45°", log: [{ kg: String(100 + k), reps: "10" }], kg: String(100 + k), reps: "10", sets: 1, of: 3 }] }) });
+  const all = await (async () => { const f = await api("state"); let ss = f.sessions;
+    for (let pg = ss; pg.length >= f.page; ) { const l = ss[ss.length - 1]; pg = (await api(`sessions?before=${l.finishedAt}&beforeId=${encodeURIComponent(l.id)}`)).sessions; ss = ss.concat(pg); }
+    return ss; })();
+  assert.ok(all.length > 2, "há mais de uma página no servidor");
+  const P = await open("UA", { connect: true });
+  assert.equal((await S(P)).history.length, all.length, "aparelho novo recebe todas as páginas");
+  execFileSync(process.execPath, ["scripts/backup.mjs", bk], { env: { ...process.env, API_URL: U, APP_KEY: KEY } });
+  const PB = await open("UA"); await PB.click("#tab-hist"); PB.once("dialog", d => d.accept(KEY)); await PB.setInputFiles("#imp-json", bk);
+  await PB.waitForFunction(n => JSON.parse(localStorage.getItem("ul4-v1")).history.length === n, all.length);
+  ok("histórico em páginas: aparelho novo e backup recebem tudo");
+
+  // Esforço por série (reps que sobraram) × meta da semana do ciclo
+  const monday = await P.evaluate(() => isoDay(mondayOf()));
+  const lastWith = sets => ({ v: 3, cur: {}, history: [], body: [], resets: {}, notes: {}, cycle: { start: monday, t: 1 },
+    last: { "supino-reto-com-barra": { date: "01/11/2026", sets, t: 1 } } });
+  const R1 = await open("UA", { state: lastWith([1, 2, 3, 4].map(() => ({ kg: "60", reps: "8", rir: "1" }))) });
+  assert.equal(await R1.getAttribute(field(0, 0, "rir"), "placeholder"), "3", "semana 1: meta de 3 reps sobrando");
+  assert.match(await R1.textContent(`${card(0)} .tip`), /Meta atingida, mas no limite \(sobrou 1; a semana pede 3\): repita 60 kg/);
+  assert.match(await R1.textContent(`${card(0)} .last`), /sobra 1\/1\/1\/1/);
+  const R2 = await open("UA", { state: lastWith([1, 2, 3, 4].map(() => ({ kg: "60", reps: "6", rir: "5" }))) });
+  assert.match(await R2.textContent(`${card(0)} .tip`), /Carga leve para a semana \(sobraram 5\+ reps; a meta é 3\): suba para 62,5 kg/);
+  assert.match(await R2.textContent(`${card(0)} [data-load]`), /62,5 kg = barra/, "anilhas seguem a carga sugerida");
+  await R2.fill(field(0, 0, "kg"), "62,5"); await R2.fill(field(0, 0, "reps"), "8"); await R2.fill(field(0, 0, "rir"), "2");
+  await R2.click(`${card(0)} .set[data-j="0"]`); await finish(R2);
+  const st2 = await S(R2);
+  assert.equal(st2.history[0].entries[0].log[0].rir, "2"); assert.equal(st2.last["supino-reto-com-barra"].sets[0].rir, "2");
+  ok("esforço por série: meta da semana, sugestão ajustada e registro");
+
+  // Resumo semanal: aviso na semana seguinte e painel com navegação
+  const lastWeek = await P.evaluate(() => { const d = mondayOf(); d.setDate(d.getDate() - 3); d.setHours(10); return d.getTime(); });
+  const W1 = await open("UA", { state: { v: 3, cur: {}, last: {}, body: [], resets: {}, notes: {}, history: [{ id: "w1", wid: "UA", date: "x", finishedAt: lastWeek, dur: 58,
+    entries: [{ ex: "supino-reto-com-barra", alt: false, n: "Supino reto com barra", log: [{ kg: "60", reps: "8" }], kg: "60", reps: "8", sets: 4, of: 4, pr: ["carga"] },
+              { ex: "rosca-direta-barra-w", alt: false, n: "Rosca direta (barra W)", log: [{ kg: "25", reps: "10" }], kg: "25", reps: "10", sets: 3, of: 3 }] }] } });
+  assert.match(await W1.textContent(".week-sum"), /Semana passada: 1 de 4 treinos · 🏆 1 recorde · peito 4\/15 · bíceps 3\/9/);
+  await W1.click("[data-week-open]");
+  assert.equal(await W1.isVisible("#view-hist"), true);
+  assert.notEqual(await W1.textContent("#wk-label"), "Esta semana");
+  assert.match(await W1.textContent("#wk-sum"), /1 de 4.*58 min.*🏆 1: Supino reto com barra/s);
+  await W1.click("#wk-next"); assert.equal(await W1.textContent("#wk-label"), "Esta semana");
+  await W1.click("#tab-treino"); assert.equal(await W1.locator(".week-sum").count(), 0, "aviso some depois de visto");
+  ok("resumo semanal: aviso, painel e navegação entre semanas");
+  if (process.env.SHOTS) {
+    await W1.click("#tab-hist"); await W1.click("#wk-prev"); await W1.locator("#wk-sum").locator("..").screenshot({ path: process.env.SHOTS + "/week.png" });
+    await R1.locator(card(0)).screenshot({ path: process.env.SHOTS + "/rir.png" });
+  }
 
   assert.deepEqual(errors, [], "sem erros de JavaScript na página");
   ok("nenhum erro de JavaScript");

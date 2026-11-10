@@ -1,6 +1,6 @@
 // GET  /api/state  → estado atual (séries marcadas, rascunhos, últimas cargas) + histórico
 // PUT  /api/state  → salva o estado; ignora envios mais antigos que o já salvo
-import { getDb } from "./_lib/db.js";
+import { getDb, PAGE, sessionsPage } from "./_lib/db.js";
 import { route, send, readJson } from "./_lib/http.js";
 
 const ID = "me";
@@ -16,10 +16,10 @@ export default route(["GET", "PUT"], async (req, res) => {
     const col = db.collection("sessions");
     const [state, sessions, deleted] = await Promise.all([
       states.findOne({ _id: ID }, { projection: { _id: 0 } }),
-      withSessions ? col.find({ deleted: { $ne: true } }, { projection: { _id: 0 } }).sort({ finishedAt: -1 }).limit(500).toArray() : null,
+      withSessions ? sessionsPage(col) : null, // primeira página; o resto em GET /api/sessions?before=…
       withSessions ? col.find({ deleted: true }, { projection: { _id: 1 } }).toArray() : null
     ]);
-    return send(res, 200, withSessions ? { state, sessions, deleted: deleted.map(d => d._id) } : { state });
+    return send(res, 200, withSessions ? { state, sessions, page: PAGE, deleted: deleted.map(d => d._id) } : { state });
   }
 
   const body = await readJson(req);

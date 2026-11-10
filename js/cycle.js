@@ -10,10 +10,9 @@ function mondayOf(d = new Date()){
   x.setDate(x.getDate() - (x.getDay() + 6) % 7);
   return x;
 }
-function cycleWeek(){
+function cycleWeek(at = new Date()){
   if (!S.cycle || !S.cycle.start) return 0;
-  // round: horário de verão; início no futuro (ciclo marcado no fim de semana) já conta como semana 1
-  const weeks = Math.max(0, Math.round((mondayOf() - parseIso(S.cycle.start)) / 6048e5));
+  const weeks = Math.round((mondayOf(at) - parseIso(S.cycle.start)) / 6048e5); // round: horário de verão
   return ((weeks % CYCLE_WEEKS) + CYCLE_WEEKS) % CYCLE_WEEKS + 1;
 }
 function phase(w){
@@ -23,6 +22,11 @@ function phase(w){
   return { rir: "deload", note: "Metade das séries com a mesma carga. As caminhadas continuam.", deload: true };
 }
 const isDeload = () => cycleWeek() === CYCLE_WEEKS;
+// Reps que devem sobrar em cada série (reps em reserva) na semana atual; null sem ciclo ou no deload.
+function targetRir(){
+  const w = cycleWeek();
+  return !w || w === CYCLE_WEEKS ? null : w <= 2 ? 3 : w <= 5 ? 2 : 1;
+}
 const nSets = x => isDeload() ? Math.ceil(x.s / 2) : x.s;
 // Define a semana atual do ciclo (o início é recalculado a partir desta segunda-feira).
 function setCycleWeek(w){
