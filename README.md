@@ -43,6 +43,7 @@ api/                  funções serverless da Vercel
   _lib/               conexão com o MongoDB, autenticação e CORS
 scripts/dev.mjs       servidor local (app + API)
 scripts/test-api.mjs  testes da API
+scripts/backup.mjs    backup criptografado pela API (usado pela Action semanal)
 tests/e2e.mjs         testes de ponta a ponta (Chromium)
 .github/workflows/    testes automáticos a cada push
 ```
@@ -74,6 +75,16 @@ A API é protegida por uma chave pessoal (`APP_KEY`), enviada pelo app no cabeç
 5. No app (GitHub Pages), vá em **Histórico → Banco de dados**, informe o endereço da API (`https://<seu-projeto>.vercel.app`) e a chave, e toque em **Conectar**.
 
 O app continua no GitHub Pages; a Vercel só executa a API. A API aceita chamadas apenas das origens em `ALLOWED_ORIGINS` (padrão: `https://heryssrique.github.io`; para mais de uma, separe por vírgula). Aberto direto no endereço da Vercel, o app usa a API do mesmo endereço e não pede o campo de endereço.
+
+### Backup automático
+
+Todo domingo (06:17 de Brasília), a Action **Backup semanal** (`.github/workflows/backup.yml`) baixa os dados pela API e guarda um arquivo por 90 dias, em *Actions → Backup semanal → (execução) → Artifacts*. Como o repositório é público, o arquivo sai **criptografado com a `APP_KEY`** (AES-256-GCM): sem a chave, não dá para ler.
+
+Configurar uma vez: em *Settings → Secrets and variables → Actions → New repository secret*, crie `APP_KEY` com a mesma chave cadastrada na Vercel. Se a API mudar de endereço, crie a variável `API_URL` na aba *Variables*. Para um backup na hora: *Actions → Backup semanal → Run workflow*.
+
+Restaurar: baixe o artefato (vem em .zip), extraia o `.json` e, no app, use *Histórico → Backup → Importar backup*. O app usa a chave conectada ou pergunta por ela. A importação junta com o que já existe, sem apagar nada.
+
+Gerar um backup manualmente: `API_URL=https://… APP_KEY=… node scripts/backup.mjs backup.json`.
 
 ### Desenvolvimento local
 

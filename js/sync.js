@@ -114,5 +114,5 @@ const Sync = (() => {
   window.addEventListener("online", run);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") run(); });
 
-  return { run, pushStateSoon, flushSessions: () => flushSessions().catch(() => {}) };
+  return { run, pushStateSoon, flushSessions: () => flushSessions().catch(() => {}), key: () => key };
 })();

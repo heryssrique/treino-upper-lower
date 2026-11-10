@@ -186,10 +186,30 @@ $("#exp-json").addEventListener("click", () => {
   const data = { app: "treino-upper-lower", schema: SCHEMA, exportedAt: new Date().toISOString(), history: S.history, ...pickState(S) };
   download(`treino-backup-${stamp()}.json`, JSON.stringify(data, null, 1), "application/json");
 });
+/* Backup automático (GitHub Actions, scripts/backup.mjs): criptografado com a
+   APP_KEY porque o repositório é público. AES-256-GCM, chave por PBKDF2-SHA256. */
+async function decryptBackup(enc, pass){
+  const bin = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  const aes = await crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: bin(enc.salt), iterations: enc.iter }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: bin(enc.iv) }, aes, bin(enc.data))));
+}
 $("#imp-json").addEventListener("change", async e => {
   const file = e.target.files[0]; e.target.value = ""; if (!file) return;
   try {
-    const data = JSON.parse(await file.text());
+    let data = JSON.parse(await file.text());
+    if (data.app === "treino-upper-lower" && data.enc) {
+      // Tenta a chave conectada; sem ela (ou se não abrir), pergunta.
+      let pass = Sync.key(), opened = null;
+      if (pass) opened = await decryptBackup(data, pass).catch(() => null);
+      if (!opened) {
+        pass = prompt("Backup criptografado. Digite a chave pessoal (APP_KEY):");
+        if (!pass) return;
+        opened = await decryptBackup(data, pass.trim()).catch(() => null);
+        if (!opened) return toast("Chave errada para este backup");
+      }
+      data = opened;
+    }
     if (data.app !== "treino-upper-lower" || !Array.isArray(data.history)) throw new Error("formato");
     migrateState(data);
     Object.assign(S, mergeState(S, data));

@@ -1,0 +1,34 @@
+# Backup semanal do banco (MongoDB) pela API. O arquivo sai criptografado com a
+# APP_KEY e fica 90 dias como artefato desta Action. Restaure no app em
+# Histórico → Backup → Importar backup.
+# Requer o segredo APP_KEY (Settings → Secrets and variables → Actions).
+name: Backup semanal
+on:
+  schedule:
+    - cron: "17 9 * * 0" # domingo, 06:17 em Brasília
+  workflow_dispatch: # botão "Run workflow" para um backup na hora
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: run
+        env:
+          API_URL: ${{ vars.API_URL || 'https://treino-upper-lower-seven.vercel.app' }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+        run: |
+          file="treino-backup-$(date -u +%F).json"
+          node scripts/backup.mjs "$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.run.outputs.file }}
+          path: ${{ steps.run.outputs.file }}
+          retention-days: 90
+          if-no-files-found: error

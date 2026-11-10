@@ -211,6 +211,28 @@ try {
   assert.equal((await S(B)).notes["supino-inclinado-com-barra"].text, "travas no 5");
   ok("sincronização: junção, zerar, apagar e anotações entre aparelhos");
 
+  // Backup automático: script gera o arquivo criptografado pela API; o app restaura num aparelho novo
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs/promises"), os = await import("node:os"), path = await import("node:path");
+  const bk = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "bk-")), "backup.json");
+  const outp = execFileSync(process.execPath, ["scripts/backup.mjs", bk], { env: { ...process.env, API_URL: U, APP_KEY: KEY } }).toString();
+  assert.match(outp, /Backup ok: \d+ treino/);
+  const raw = await fs.readFile(bk, "utf8");
+  assert.equal(JSON.parse(raw).enc, "aes-256-gcm+pbkdf2-sha256");
+  assert.doesNotMatch(raw, /travas no 5|Face pull|supino/i, "arquivo não tem dados legíveis");
+  const serverCount = (await api("state")).sessions.length;
+  const C = await open("UA"); await C.click("#tab-hist");
+  C.once("dialog", d => d.accept("chave-errada-1234567"));
+  await C.setInputFiles("#imp-json", bk);
+  await C.waitForSelector(".toast"); assert.match(await C.textContent(".toast"), /Chave errada/);
+  C.once("dialog", d => d.accept(KEY));
+  await C.setInputFiles("#imp-json", bk);
+  await C.waitForFunction(n => JSON.parse(localStorage.getItem("ul4-v1")).history.length === n, serverCount);
+  assert.equal((await S(C)).notes["supino-inclinado-com-barra"].text, "travas no 5");
+  // Sem APP_KEY o script falha com mensagem clara
+  assert.throws(() => execFileSync(process.execPath, ["scripts/backup.mjs", bk], { env: { ...process.env, API_URL: U, APP_KEY: "" }, stdio: "pipe" }), /APP_KEY/);
+  ok("backup automático criptografado: gerar pela API e restaurar com a chave");
+
   assert.deepEqual(errors, [], "sem erros de JavaScript na página");
   ok("nenhum erro de JavaScript");
   console.log("E2E ok: todos os testes passaram");
