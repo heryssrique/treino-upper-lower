@@ -13,7 +13,8 @@ await new Promise((ok, fail) => {
 });
 const api = (path, opts = {}) => fetch(`${U}/api/${path}`, { ...opts, headers: { Authorization: "Bearer " + KEY, "Content-Type": "application/json" } }).then(r => r.json());
 
-const browser = await chromium.launch();
+// CHROMIUM_PATH: usa um Chromium já instalado (quando a versão do Playwright não tem o seu).
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const errors = [];
 async function open(hash = "UA", { state, connect } = {}){
   const ctx = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, acceptDownloads: true });
